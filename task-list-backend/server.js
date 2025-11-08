@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -9,13 +10,32 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Cargar variables de entorno
+require('dotenv').config();
+
+/* Conectar a MongoDB local (Docker)
+mongoose.connect('mongodb://localhost:27017/taskdb', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+  .then(() => console.log('Conectado a MongoDB'))
+  .catch((error) => console.error('Error al conectar a MongoDB:', error));*/
+
+  mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+  .then(() => console.log('✅ Conectado a MongoDB Atlas'))
+  .catch((error) => console.error('Error al conectar a MongoDB:', error));
+
+  
 // Conectar a MongoDB (usa tu cadena de conexión de MongoDB local o Atlas)
-mongoose.connect('mongodb://localhost:27017/taskdb', 
+/*mongoose.connect('mongodb://localhost:27017/taskdb', 
   {}).then(() => {
   console.log('Conectado a MongoDB');
 }).catch((error) => {
   console.error('Error al conectar a MongoDB:', error);
-});
+});*/
 
 // Definir el esquema y modelo de Tarea
 // Definir el esquema y modelo de Tarea
