@@ -1,4 +1,3 @@
-require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -10,34 +9,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Cargar variables de entorno
-require('dotenv').config();
-
-/* Conectar a MongoDB local (Docker)
-mongoose.connect('mongodb://localhost:27017/taskdb', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-  .then(() => console.log('Conectado a MongoDB'))
-  .catch((error) => console.error('Error al conectar a MongoDB:', error));*/
-
-  mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-  .then(() => console.log('✅ Conectado a MongoDB Atlas'))
-  .catch((error) => console.error('Error al conectar a MongoDB:', error));
-
-  
 // Conectar a MongoDB (usa tu cadena de conexión de MongoDB local o Atlas)
-/*mongoose.connect('mongodb://localhost:27017/taskdb', 
-  {}).then(() => {
+//mongoose.connect('mongodb://localhost:27017/taskdb'
+mongoose.connect('mongodb://127.0.0.1:27017/taskdb')
+.then(() => {
   console.log('Conectado a MongoDB');
 }).catch((error) => {
   console.error('Error al conectar a MongoDB:', error);
-});*/
+});
 
-// Definir el esquema y modelo de Tarea
 // Definir el esquema y modelo de Tarea
 const taskSchema = new mongoose.Schema({
   name: {
@@ -47,21 +27,10 @@ const taskSchema = new mongoose.Schema({
   completed: {
     type: Boolean,
     default: false
-  },
-  status: { // Nuevo campo para el estado de la tarea
-    type: String,
-    enum: ['completada', 'ejecutando', 'acumulada', 'false'], // Estados posibles
-    default: 'false'
-  },
-  date: {
-    type: Date,
-    default: Date.now
   }
 });
 
-
 const Task = mongoose.model('Task', taskSchema);
-
 
 // Rutas API
 
@@ -80,16 +49,6 @@ app.post('/api/tasks', async (req, res) => {
   res.json(newTask);
 });
 
-// Actualizar el estado de una tarea
-app.put('/api/tasks/:id/status', async (req, res) => {
-  const { id } = req.params;
-  const { status, completed } = req.body; // Recibe el nuevo estado y si está completada
-
-  const updatedTask = await Task.findByIdAndUpdate(id, { status, completed }, { new: true });
-  res.json(updatedTask);
-});
-
-
 // Eliminar una tarea
 app.delete('/api/tasks/:id', async (req, res) => {
   const { id } = req.params;
@@ -97,31 +56,8 @@ app.delete('/api/tasks/:id', async (req, res) => {
   res.json({ message: 'Tarea eliminada' });
 });
 
-// Actualizar el estado de una tarea
-async function updateTaskStatus(id, status) {
-  try {
-    const response = await fetch(`http://localhost:5000/api/tasks/${id}/status`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ status })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Error: ${response.statusText}`);
-    }
-
-    const updatedTask = await response.json();
-    console.log(`Estado de la tarea actualizado a: ${updatedTask.status}`);
-  } catch (error) {
-    console.error('Hubo un problema al actualizar el estado:', error);
-  }
-}
-
-
 // Iniciar el servidor
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Servidor escuchando en el puerto ${PORT}`);
+  console.log(`Server listening in the port ${PORT}`);
 });
