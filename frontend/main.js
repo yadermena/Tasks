@@ -10,7 +10,7 @@ addBtn.addEventListener("click", async (e) => {
   const text = input.value;
 
   if (text !== "") {
-    const response = await fetch('http://localhost:5000/api/tasks', {
+    const response = await fetch('http://127.0.0.1:5000/api/tasks', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -82,7 +82,6 @@ function addTaskToDOM(task) {
   ul.appendChild(li);
 }
 
-
 function setButtonStatus(activeBtn, btn1, btn2, activeColor, color1, color2) {
   // Cambiar color del botón activo
   activeBtn.style.backgroundColor = activeColor;
@@ -99,7 +98,7 @@ function addDeleteBtn(id) {
 
   deleteBtn.addEventListener("click", async (e) => {
     const item = e.target.parentElement;
-    await fetch(`http://localhost:5000/api/tasks/${id}`, { method: 'DELETE' });
+    await fetch(`http://127.0.0.1:5000/api/tasks/${id}`, { method: 'DELETE' });
     ul.removeChild(item);
 
     const items = document.querySelectorAll("li");
@@ -113,7 +112,7 @@ function addDeleteBtn(id) {
 
 async function updateTaskStatus(id, status, completed = false) {
   try {
-    const response = await fetch(`http://localhost:5000/api/tasks/${id}/status`, {
+    const response = await fetch(`http://127.0.0.1:5000/api/tasks/${id}/status`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -132,10 +131,9 @@ async function updateTaskStatus(id, status, completed = false) {
   }
 }
 
-
 // Cargar tareas existentes
 async function getTasks() {
-  const response = await fetch('http://localhost:5000/api/tasks');
+  const response = await fetch('http://127.0.0.1:5000/api/tasks');
   const tasks = await response.json();
 
   if (tasks.length > 0) {
