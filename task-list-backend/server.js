@@ -1,3 +1,6 @@
+// OBLIGATORIO: Debe ser la primera línea del archivo
+require('dotenv').config();
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -9,11 +12,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Conectar a MongoDB (usa tu cadena de conexión de MongoDB local o Atlas)
-//mongoose.connect('mongodb://localhost:27017/taskdb'
-mongoose.connect('mongodb://127.0.0.1:27017/taskdb')
+// Conectar a MongoDB usando la variable de entorno o la URI directa fija
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://ydrmena27:yader1989@cluster0.neh7d.mongodb.net/taskdb?appName=Cluster0';
+mongoose.connect(MONGO_URI)
 .then(() => {
-  console.log('Conectado a MongoDB');
+  console.log('¡Conectado a MongoDB con éxito!');
 }).catch((error) => {
   console.error('Error al conectar a MongoDB:', error);
 });
