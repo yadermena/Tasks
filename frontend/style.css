@@ -136,5 +136,38 @@ body {
   
   .btn-red.active {
     background-color: red;
+    
   }
   
+  /* Estilo unificado para el botón Anular */
+.btn-anulado {
+    background-color: lightgray;
+    border: none; /* Quitamos el borde negro marcado */
+    outline: none;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: background-color 0.2s ease;
+}
+
+/* Efecto suave al pasar el cursor (opcional) */
+.btn-anulado:hover {
+    background-color: #bcbcbc;
+}
+
+/* Color unificado para todos los elementos de texto y botones */
+body, 
+h1, 
+input, 
+button, 
+p, 
+span {
+    color: #333333; /* O use #333333 si prefiere un todo gris/negro uniforme */
+}
+
+/* Para asegurarnos de que los botones activos (como 'Ejecutando') no pierdan legibilidad */
+button {
+    font-family: inherit;
+    color: #333333; 
+}
