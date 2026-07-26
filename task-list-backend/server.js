@@ -24,26 +24,40 @@ mongoose.connect(MONGO_URI)
 
 // 1. Obtener solo tareas activas (que no hayan sido anuladas/eliminadas)
 // En server.js
+// Obtener solo tareas que NO hayan sido anuladas/eliminadas
 app.get('/api/tasks', async (req, res) => {
   try {
-    // $ne: true trae las tareas que son false O las que no tienen el campo aún
-    const tasks = await Task.find({ isDeleted: { $ne: true } }); 
+    const tasks = await Task.find({ isDeleted: { $ne: true } });
     res.json(tasks);
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener las tareas', error: error.message });
   }
 });
 
-// 2. Crear una nueva tarea
-app.post('/api/tasks', async (req, res) => {
+// Endpoint para actualizar estado y borrado lógico
+app.put('/api/tasks/:id/status', async (req, res) => {
   try {
-    const newTask = new Task({
-      name: req.body.name
-    });
-    await newTask.save();
-    res.json(newTask);
+    const { status, completed, isDeleted } = req.body;
+
+    const updateData = {
+      status,
+      completed: status === 'completada' || completed,
+      completedAt: status === 'completada' ? new Date() : null
+    };
+
+    if (typeof isDeleted !== 'undefined') {
+      updateData.isDeleted = isDeleted;
+    }
+
+    const updatedTask = await Task.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true }
+    );
+
+    res.json(updatedTask);
   } catch (error) {
-    res.status(500).json({ message: 'Error al crear la tarea', error: error.message });
+    res.status(500).json({ message: 'Error al actualizar', error: error.message });
   }
 });
 
