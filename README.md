@@ -4,8 +4,11 @@ sudo chown -R $USER:$USER .git
 chmod -R u+rw .git
 
 
-
  mongodb atlas ydrmena27@gmail.com
+ 
+ CONECTION MONGODB ATLAS NAVICAT MONGO URI
+ mongodb+srv://user:pass@cluster0.neh7d.mongodb.net/taskdb?appName=Cluster0
+
  
 Instala node js
 sudo apt install nodejs
