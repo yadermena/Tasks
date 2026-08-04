@@ -1,0 +1,252 @@
+:host {
+  display: block;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #f2f7fb 0%, #f8fbfd 100%);
+  color: #1f2937;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.app-shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.task-panel {
+  background: #ffffff;
+  border-radius: 1rem;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+  padding: 1.75rem;
+}
+
+.task-header h1 {
+  margin: 0 0 0.5rem;
+  font-size: 2rem;
+}
+
+.task-header p {
+  margin: 0;
+  color: #475569;
+}
+
+.task-form,
+.task-controls {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1.25rem;
+}
+
+.task-form input,
+.task-controls input {
+  flex: 1;
+  min-width: 220px;
+  padding: 0.95rem 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.75rem;
+  font-size: 1rem;
+}
+
+.task-form button,
+.task-controls button,
+.task-actions button {
+  border: none;
+  border-radius: 0.75rem;
+  padding: 0.95rem 1.25rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.task-form button,
+.task-controls button {
+  background: #2563eb;
+  color: #fff;
+}
+
+.page-box {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  position: relative;
+}
+
+.show-button {
+  background: #6d28d9;
+  color: #fff;
+  min-width: 140px;
+  padding: 0.85rem 1rem;
+}
+
+.page-size-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 10;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+}
+
+.page-size-dropdown select {
+  border: 1px solid #cbd5e1;
+  border-radius: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: #ffffff;
+  color: #0f172a;
+  width: 100%;
+}
+
+.task-form button:hover,
+.task-controls button:hover,
+.task-actions button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(37, 99, 235, 0.18);
+}
+
+.status-bar {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: #f1f5f9;
+}
+
+.status-bar.error {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.empty-state {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+  color: #334155;
+}
+
+.task-list {
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.task-item {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.task-content {
+  min-width: 220px;
+  flex: 1;
+}
+
+.task-content p {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.task-status {
+  display: inline-flex;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.task-actions button {
+  background: #e2e8f0;
+  color: #0f172a;
+  /* Uniform size for all action buttons */
+  min-width: 120px;
+  height: 44px;
+  padding: 0 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.task-actions button.active {
+  background: #2563eb;
+  color: #fff;
+}
+
+.task-actions .btn-delete {
+  background: #ef4444;
+  color: white;
+}
+
+.task-actions .btn-delete:disabled {
+  background: #ef4444;
+  color: white;
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Variant for special small-color button (completed === false) keep same size */
+.task-actions .btn-delete[style] {
+  /* when inline style sets backgroundColor to #FF7257, this rule keeps sizing */
+  min-width: 120px;
+  height: 44px;
+  padding: 0 1rem;
+}
+
+@media (max-width: 720px) {
+  .task-form,
+  .task-controls {
+    flex-direction: column;
+  }
+
+  .task-actions {
+    width: 100%;
+  }
+}
+
+.filter-window {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+}
+
+.filter-window button {
+  background: #e2e8f0;
+  color: #0f172a;
+  border-radius: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.filter-window button:hover {
+  background: #cbd5e1;
+}
+
+.filter-window button.active {
+  background: #2563eb;
+  color: #fff;
+}

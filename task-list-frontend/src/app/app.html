@@ -1,0 +1,140 @@
+<main class="app-shell">
+  <section class="task-panel">
+    <header class="task-header">
+      <h1>{{ title() }}</h1>
+      <p>Organiza tus tareas de una forma sencilla.</p>
+    </header>
+
+    <form class="task-form" (submit)="onSubmit($event)">
+      <input
+        type="text"
+        placeholder="Agregar tarea..."
+        [value]="inputValue()"
+        (input)="updateInput($any($event.target).value)"
+        aria-label="Nueva tarea"
+      />
+      <button type="submit">Agregar</button>
+    </form>
+
+    <div class="task-controls">
+      <input
+        type="search"
+        placeholder="Buscar tarea..."
+        [value]="query()"
+        (input)="updateQuery($any($event.target).value)"
+        aria-label="Buscar tareas"
+      />
+      <div class="page-box">
+        <button type="button" class="show-button" (click)="togglePageSizeDropdown()">
+          Mostrar tareas
+        </button>
+        <div class="page-size-dropdown" *ngIf="showPageSizeDropdown()">
+          <select [value]="pageSize()" (change)="setPageSize($any($event.target).value)">
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="filter-window">
+      <button
+        type="button"
+        (click)="applyFilterMode('all')"
+        [class.active]="filterMode() === 'all'"
+      >
+        Mostrar todas
+      </button>
+      <button
+        type="button"
+        (click)="applyFilterMode('completada')"
+        [class.active]="filterMode() === 'completada'"
+      >
+        Completada
+      </button>
+      <button
+        type="button"
+        (click)="applyFilterMode('ejecutando')"
+        [class.active]="filterMode() === 'ejecutando'"
+      >
+        Ejecutando
+      </button>
+      <button
+        type="button"
+        (click)="applyFilterMode('acumulada')"
+        [class.active]="filterMode() === 'acumulada'"
+      >
+        Acumulada
+      </button>
+    </div>
+    <div class="task-summary" *ngIf="!loading()">
+      <p>Tareas encontradas: {{ filteredTasks().length }} / Total en página: {{ pagedTasks().length }}</p>
+    </div>
+
+    <div class="status-bar" *ngIf="loading()">Cargando tareas...</div>
+    <div class="status-bar error" *ngIf="error()">{{ error() }}</div>
+
+    <div class="empty-state" *ngIf="!loading() && filteredTasks().length === 0">
+      <p>No tienes tareas pendientes.</p>
+    </div>
+
+    <ul class="task-list" *ngIf="!loading() && filteredTasks().length > 0">
+      <li *ngFor="let task of pagedTasks(); trackBy: trackById" class="task-item">
+        <div class="task-content">
+          <p>{{ task.name }}</p>
+          <span class="task-status">{{ displayStatus(task) }}</span>
+        </div>
+
+        <div class="task-actions">
+          <button
+            type="button"
+            [class.active]="task.status === 'completada'"
+            (click)="setTaskStatus(task, 'completada')"
+            [disabled]="isTaskBlocked(task)"
+          >
+            Completada
+          </button>
+          <button
+            type="button"
+            [class.active]="task.status === 'ejecutando'"
+            (click)="setTaskStatus(task, 'ejecutando')"
+            [disabled]="isTaskBlocked(task)"
+          >
+            Ejecutando
+          </button>
+          <button
+            type="button"
+            [class.active]="task.status === 'acumulada'"
+            (click)="setTaskStatus(task, 'acumulada')"
+            [disabled]="task.status === 'completada'"
+          >
+            Acumulada
+          </button>
+          <button
+            type="button"
+            class="btn-delete"
+            (click)="deleteTask(task)"
+            [disabled]="!task.completed || task.isDeleted"
+            [attr.aria-label]="task.completed === false ? 'Acción especial' : 'Eliminar tarea'"
+          >
+            Eliminar
+          </button>
+        </div>
+      </li>
+    </ul>
+
+    <div class="pagination" *ngIf="!loading() && filteredTasks().length > 0">
+      <button type="button" (click)="gotoFirstPage()" [disabled]="pageIndex() === 0">
+        « Primera página
+      </button>
+      <button type="button" (click)="gotoPreviousPage()" [disabled]="pageIndex() === 0">
+        « Anterior
+      </button>
+      <span>Página {{ pageIndex() + 1 }} de {{ totalPages() }}</span>
+      <button type="button" (click)="gotoNextPage()" [disabled]="pageIndex() === totalPages() - 1">
+        Siguiente »
+      </button>
+    </div>
+  </section>
+</main>
