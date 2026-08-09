@@ -1,22 +1,155 @@
-<main class="app-shell">
-  <!-- If an admin is logged in, show the user admin panel above the task list -->
-  <ng-container *ngIf="currentUser()?.role === 'admin'">
-    <ng-container *ngTemplateOutlet="userAdmin"></ng-container>
-  </ng-container>
+<main class="app-shell" [class.sidebar-open]="isSidebarOpen()">
+  <!-- Hamburger menu button -->
+  <button class="hamburger-menu" (click)="toggleSidebar()">☰</button>
 
-  <!-- Task Dashboard: show if any user is "logged in" -->
-  <section *ngIf="currentUser() as user; else userAdmin" class="dashboard-panel" [style.margin-top]="currentUser()?.role === 'admin' ? '1rem' : '0'">
-    <header class="dashboard-header">
-      <div>
-        <p class="eyebrow">Tareas de</p>
-        <h1>{{ user.name }}</h1>
-        <p>Aquí puedes gestionar las tareas para este usuario.</p>
+  <!-- Sidebar -->
+  <aside class="sidebar" [class.open]="isSidebarOpen()">
+    <div class="sidebar-header">
+      <h2>{{ realUser()?.role === 'admin' ? 'Panel Admin' : 'Usuarios' }}</h2>
+      <button class="close-sidebar" (click)="toggleSidebar()">×</button>
+    </div>
+
+    <!-- "Go back to admin panel" button for impersonating admins -->
+    <ul *ngIf="realUser()?.role === 'admin' && realUser()?._id !== currentUser()?._id" class="user-selection-list" style="margin-bottom: 1rem; flex-grow: 0;">
+      <li><button (click)="logout()">Volver al Panel Admin</button></li>
+    </ul>
+    <hr *ngIf="realUser()?.role === 'admin' && realUser()?._id !== currentUser()?._id">
+
+    <!-- Admin navigation -->
+    <ul class="user-selection-list" *ngIf="currentUser()?.role === 'admin'" style="margin-bottom: 1rem;">
+      <li><button [class.active]="adminView() === 'tasks'" (click)="setAdminView('tasks'); isSidebarOpen.set(false)">Tareas</button></li>
+      <li><button [class.active]="adminView() === 'users'" (click)="setAdminView('users'); isSidebarOpen.set(false)">Usuarios</button></li>
+      <li><button [class.active]="adminView() === 'empresas'" (click)="setAdminView('empresas'); isSidebarOpen.set(false)">Empresas</button></li>
+      <li><button [class.active]="adminView() === 'configuraciones'" (click)="setAdminView('configuraciones'); isSidebarOpen.set(false)">Configuraciones</button></li>
+    </ul>
+    <hr *ngIf="currentUser()?.role === 'admin'">
+    <h3 class="sidebar-subtitle" *ngIf="currentUser()?.role === 'admin'">Cambiar Usuario</h3>
+
+    <ul class="user-selection-list">
+      <li *ngIf="loading()">Cargando usuarios...</li>
+      <div *ngIf="error()" class="status-bar error">
+        {{ error() }}
       </div>
-      <button (click)="logout()" class="secondary">Cerrar Sesión</button>
-    </header>
+      <li *ngIf="!loading() && users().length === 0">No hay usuarios.</li>
+      <li *ngFor="let user of switchableUsers(); trackBy: trackById">
+        <button (click)="login(user)">
+          {{ user.name }} ({{ user.role }})
+        </button>
+      </li>
+    </ul>
+
+    <!-- Company Selection Section -->
+    <ng-container *ngIf="!realUser() || realUser()?.role !== 'admin'">
+      <hr>
+      <h3 class="sidebar-subtitle">Seleccionar Empresa</h3>
+      <ul class="user-selection-list" style="flex-grow: 0;">
+        <li *ngIf="loading()">Cargando empresas...</li>
+        <li *ngIf="!loading() && empresas().length === 0">No hay empresas.</li>
+        <li *ngFor="let empresa of empresas(); trackBy: trackEmpresaById">
+          <button (click)="selectEmpresa(empresa)" [class.active]="selectedEmpresa()?._id === empresa._id">
+            {{ empresa.name }}
+          </button>
+        </li>
+      </ul>
+    </ng-container>
+  </aside>
+
+  <div class="main-content">
+    <!-- View switcher for admin -->
+    <!-- Admin Panels when logged out -->
+    <ng-container *ngIf="currentUser() === null">
+      <section class="dashboard-panel">
+        <header class="dashboard-header">
+          <div>
+            <p class="eyebrow">Bienvenido</p>
+            <h1>Panel de Acceso</h1>
+            <p>Por favor, elija una empresa y luego un usuario para ingresar.</p>
+          </div>
+        </header>
+
+        <!-- Company Selection -->
+        <section class="users-section">
+          <div class="users-toolbar">
+            <h2>1. Seleccione una Empresa</h2>
+          </div>
+          <div class="status-bar" *ngIf="loading()">Cargando empresas...</div>
+          <div class="status-bar error" *ngIf="error()">{{ error() }}</div>
+          <div class="empty-state" *ngIf="!loading() && empresas().length === 0"><p>No hay empresas para mostrar.</p></div>
+          <div class="user-list" *ngIf="!loading() && empresas().length > 0">
+            <button 
+              *ngFor="let empresa of empresas(); trackBy: trackEmpresaById"
+              class="company-select-button" 
+              (click)="selectEmpresa(empresa)" 
+              [class.active]="selectedEmpresa()?._id === empresa._id"
+            >
+              <h3>{{ empresa.name }}</h3>
+              <p>Rubro: {{ empresa.rubro }}</p>
+            </button>
+          </div>
+        </section>
+
+        <!-- User Selection (shown after company is selected) -->
+        <ng-container *ngIf="selectedEmpresa()">
+          <section class="users-section" style="margin-top: 1.5rem;">
+            <div class="users-toolbar">
+              <h2>2. Seleccione un Usuario</h2>
+            </div>
+            <div class="status-bar" *ngIf="loading()">Cargando usuarios...</div>
+            <div class="status-bar error" *ngIf="error()">{{ error() }}</div>
+            <div class="empty-state" *ngIf="!loading() && users().length === 0"><p>No hay usuarios para mostrar.</p></div>
+            <div class="user-list" *ngIf="!loading() && users().length > 0">
+              <article class="user-card" *ngFor="let user of users(); trackBy: trackById">
+                <div class="user-info">
+                  <button class="user-avatar-button" (click)="login(user)" [title]="'Ingresar como ' + user.name">
+                    {{ user.name.charAt(0) }}
+                  </button>
+                  <div>
+                    <h3>{{ user.name }}</h3>
+                    <p>{{ user.email }}</p>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </section>
+        </ng-container>
+      </section>
+    </ng-container>
+
+    <!-- User Admin Panel -->
+    <ng-container *ngIf="currentUser()?.role === 'admin' && adminView() === 'users'">
+      <ng-container *ngTemplateOutlet="userAdmin"></ng-container>
+    </ng-container>
+    <!-- Empresa Admin Panel -->
+    <ng-container *ngIf="currentUser()?.role === 'admin' && adminView() === 'empresas'">
+      <ng-container *ngTemplateOutlet="empresaAdmin"></ng-container>
+    </ng-container>
+    <!-- Configuraciones Admin Panel -->
+    <ng-container *ngIf="currentUser()?.role === 'admin' && adminView() === 'configuraciones'">
+      <ng-container *ngTemplateOutlet="configuracionesAdmin"></ng-container>
+    </ng-container>
+
+    <!-- Task Dashboard: show if any user is "logged in" -->
+    <ng-container *ngIf="currentUser() as user">
+      <section *ngIf="user.role !== 'admin' || adminView() === 'tasks'" class="dashboard-panel task-dashboard">
+        <header class="dashboard-header">
+          <div *ngIf="user.role !== 'admin'">
+            <p class="eyebrow">Tareas de</p>
+            <h1>{{ user.name }}</h1>
+            <p>Aquí puedes gestionar las tareas para este usuario.</p>
+          </div>
+          <!-- User profile and logout button -->
+          <div class="header-actions">
+            <button (click)="logout()" class="secondary">
+              {{ realUser()?.role === 'admin' ? 'Volver al Panel' : 'Cerrar Sesión' }}
+            </button>
+            <div class="profile-avatar" [title]="user.name">
+              {{ currentUserInitials() }}
+            </div>
+          </div>
+        </header>
 
     <!-- Form to add a new task -->
-    <form class="user-form" (submit)="addTask($event)">
+    <form class="user-form" (submit)="addTask($event)" *ngIf="user.role !== 'admin'">
       <h2>Nueva Tarea</h2>
       <div class="form-grid-single">
         <input
@@ -121,6 +254,7 @@
       </div>
     </section>
   </section>
+    </ng-container>
 
   <!-- User Admin Dashboard if no user is "logged in" -->
   <ng-template #userAdmin>
@@ -133,34 +267,59 @@
         </div>
       </header>
 
-      <form class="user-form" (submit)="onSubmit($event)">
-        <h2>{{ editingId() ? 'Editar usuario' : 'Agregar usuario' }}</h2>
-        <div class="form-grid">
-          <input
-            type="text"
-            placeholder="Nombre"
-            [value]="form().name"
-            (input)="updateField('name', $any($event.target).value)"
-            aria-label="Nombre del usuario"
-          />
-          <input
-            type="email"
-            placeholder="Correo"
-            [value]="form().email"
-            (input)="updateField('email', $any($event.target).value)"
-            aria-label="Correo del usuario"
-          />
-          <select [value]="form().role" (change)="updateField('role', $any($event.target).value)">
-            <option value="admin">Admin</option>
-            <option value="editor">Editor</option>
-            <option value="viewer">Viewer</option>
-          </select>
-        </div>
-        <div class="form-actions">
-          <button type="submit">{{ editingId() ? 'Guardar cambios' : 'Crear usuario' }}</button>
-          <button type="button" class="secondary" (click)="cancelEdit()" *ngIf="editingId()">Cancelar</button>
-        </div>
-      </form>
+      <div class="user-form-placeholder" *ngIf="!isUserFormVisible()">
+        <button (click)="openAddUserForm(false)">AGREGAR USUARIO</button>
+      </div>
+
+      <ng-container *ngIf="isUserFormVisible()">
+        <form class="user-form" (submit)="onSubmit($event)">
+          <h2>{{ editingId() ? 'Editar usuario' : 'Agregar usuario' }}</h2>
+          <div class="form-grid">
+            <input
+              type="text"
+              placeholder="Nombre"
+              [value]="form().name"
+              (input)="updateField('name', $any($event.target).value)"
+              aria-label="Nombre del usuario"
+            />
+            <input
+              type="email"
+              placeholder="Correo"
+              [value]="form().email"
+              (input)="updateField('email', $any($event.target).value)"
+              aria-label="Correo del usuario"
+            />
+            <select [value]="form().role" (change)="updateField('role', $any($event.target).value)">
+              <option value="admin">Admin</option>
+              <option value="editor">Editor</option>
+              <option value="viewer">Viewer</option>
+            </select>
+            <select [value]="form().companyId ?? ''" (change)="updateField('companyId', $any($event.target).value)">
+              <option value="">Sin empresa</option>
+              <option *ngFor="let empresa of empresas()" [value]="empresa._id">
+                {{ empresa.name }}
+              </option>
+            </select>
+            <div class="password-input-container">
+              <input
+                [type]="showPassword() ? 'text' : 'password'"
+                [placeholder]="editingId() ? 'Nueva clave (dejar en blanco para no cambiar)' : 'Clave'"
+                [value]="form().password"
+                (input)="updateField('password', $any($event.target).value)"
+                aria-label="Clave del usuario"
+                autocomplete="new-password"
+              />
+              <button type="button" class="show-password-btn" (click)="showPassword.update(v => !v)">
+                {{ showPassword() ? 'Ocultar' : 'Ver' }}
+              </button>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit">{{ editingId() ? 'Guardar cambios' : 'Crear usuario' }}</button>
+            <button type="button" class="secondary" (click)="cancelEdit()">Cancelar</button>
+          </div>
+        </form>
+      </ng-container>
 
       <section class="users-section">
         <div class="users-toolbar">
@@ -183,18 +342,22 @@
 
         <div class="user-list" *ngIf="!loading() && filteredUsers().length > 0">
           <article class="user-card" *ngFor="let user of filteredUsers(); trackBy: trackById">
-            <div>
-              <h3>{{ user.name }}</h3>
-              <p>{{ user.email }}</p>
+            <div class="user-info">
+              <button class="user-avatar-button" (click)="login(user)" [title]="'Ver tareas de ' + user.name">
+                {{ user.name.charAt(0) }}
+              </button>
+              <div>
+                <h3>{{ user.name }}</h3>
+                <p>{{ user.email }}</p>
+                <p *ngIf="user.company" class="user-company">Empresa: {{ user.company.name }}</p>
+              </div>
             </div>
             <div class="user-meta">
               <span class="role-badge" [ngClass]="'role-' + user.role">{{ user.role }}</span>
               <div class="card-actions">
                 <button type="button" class="secondary" (click)="editUser(user)">Editar</button>
                 <button type="button" class="secondary" (click)="openPermissionsModal(user)">Permisos</button>
-                <button type="button" class="danger" (click)="deleteUser(user)">Eliminar</button>
-                <!-- This is the new button to "log in" as a user -->
-                <button type="button" class="secondary" (click)="login(user)">Ver Tareas</button>
+                <button type="button" class="danger" (click)="deleteUser(user)">Eliminar</button>                
               </div>
             </div>
           </article>
@@ -202,7 +365,142 @@
       </section>
     </section>
   </ng-template>
+  </div>
 
+  <!-- Configuraciones Admin Panel -->
+  <ng-template #configuracionesAdmin>
+    <section class="dashboard-panel">
+      <header class="dashboard-header">
+        <div>
+          <p class="eyebrow">Configuración</p>
+          <h1>Administradores</h1>
+          <p>Gestiona los usuarios administradores.</p>
+        </div>
+      </header>
+
+      <div class="user-form-placeholder" *ngIf="!isUserFormVisible()">
+        <button (click)="openAddUserForm(true)">AGREGAR ADMINISTRADOR</button>
+      </div>
+
+      <ng-container *ngIf="isUserFormVisible()">
+        <form class="user-form" (submit)="onSubmit($event)">
+          <h2>{{ editingId() ? 'Editar administrador' : 'Agregar administrador' }}</h2>
+          <div class="form-grid">
+            <input
+              type="text"
+              placeholder="Nombre"
+              [value]="form().name"
+              (input)="updateField('name', $any($event.target).value)"
+              aria-label="Nombre del usuario"
+            />
+            <input
+              type="email"
+              placeholder="Correo"
+              [value]="form().email"
+              (input)="updateField('email', $any($event.target).value)"
+              aria-label="Correo del usuario"
+            />
+            <div class="password-input-container">
+              <input
+                [type]="showPassword() ? 'text' : 'password'"
+                [placeholder]="editingId() ? 'Nueva clave (dejar en blanco para no cambiar)' : 'Clave'"
+                [value]="form().password"
+                (input)="updateField('password', $any($event.target).value)"
+                aria-label="Clave del usuario"
+                autocomplete="new-password"
+              />
+              <button type="button" class="show-password-btn" (click)="showPassword.update(v => !v)">
+                {{ showPassword() ? 'Ocultar' : 'Ver' }}
+              </button>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit">{{ editingId() ? 'Guardar cambios' : 'Crear administrador' }}</button>
+            <button type="button" class="secondary" (click)="cancelEdit()">Cancelar</button>
+          </div>
+        </form>
+      </ng-container>
+
+      <section class="users-section">
+        <div class="users-toolbar">
+          <h2>Administradores</h2>
+          <input type="search" placeholder="Buscar administrador..." [value]="query()" (input)="updateQuery($any($event.target).value)" aria-label="Buscar administradores" />
+        </div>
+        <div class="status-bar" *ngIf="loading()">Cargando administradores...</div>
+        <div class="status-bar error" *ngIf="error()">{{ error() }}</div>
+        <div class="empty-state" *ngIf="!loading() && filteredAdminUsers().length === 0">
+          <p>No hay administradores para mostrar.</p>
+        </div>
+        <div class="user-list" *ngIf="!loading() && filteredAdminUsers().length > 0">
+          <article class="user-card" *ngFor="let user of filteredAdminUsers(); trackBy: trackById">
+            <div class="user-info">
+              <button class="user-avatar-button" (click)="login(user)" [title]="'Ver tareas de ' + user.name">
+                {{ user.name.charAt(0) }}
+              </button>
+              <div><h3>{{ user.name }}</h3><p>{{ user.email }}</p></div>
+            </div>
+            <div class="user-meta">
+              <span class="role-badge" [ngClass]="'role-' + user.role">{{ user.role }}</span>
+              <div class="card-actions"><button type="button" class="secondary" (click)="editUser(user)">Editar</button><button type="button" class="secondary" (click)="openPermissionsModal(user)">Permisos</button><button type="button" class="danger" (click)="deleteUser(user)">Eliminar</button></div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </section>
+  </ng-template>
+
+  <!-- Empresa Admin Dashboard -->
+  <ng-template #empresaAdmin>
+    <section class="dashboard-panel">
+      <header class="dashboard-header">
+        <div>
+          <p class="eyebrow">Administración</p>
+          <h1>Dashboard de Empresas</h1>
+          <p>Administra empresas desde un solo lugar.</p>
+        </div>
+      </header>
+
+      <form class="user-form" (submit)="onEmpresaSubmit($event)">
+        <h2>{{ editingEmpresaId() ? 'Editar empresa' : 'Agregar empresa' }}</h2>
+        <div class="form-grid">
+          <input
+            type="text"
+            placeholder="Nombre de la empresa"
+            [value]="empresaForm().name"
+            (input)="updateEmpresaField('name', $any($event.target).value)"
+            aria-label="Nombre de la empresa"
+          />
+          <input
+            type="text"
+            placeholder="Rubro"
+            [value]="empresaForm().rubro"
+            (input)="updateEmpresaField('rubro', $any($event.target).value)"
+            aria-label="Rubro de la empresa"
+          />
+        </div>
+        <div class="form-actions">
+          <button type="submit">{{ editingEmpresaId() ? 'Guardar cambios' : 'Crear empresa' }}</button>
+          <button type="button" class="secondary" (click)="cancelEditEmpresa()" *ngIf="editingEmpresaId()">Cancelar</button>
+        </div>
+      </form>
+
+      <section class="users-section">
+        <div class="users-toolbar">
+          <h2>Empresas</h2>
+          <input type="search" placeholder="Buscar empresa..." [value]="empresaQuery()" (input)="updateEmpresaQuery($any($event.target).value)" aria-label="Buscar empresas" />
+        </div>
+        <div class="status-bar" *ngIf="loading()">Cargando empresas...</div>
+        <div class="status-bar error" *ngIf="error()">{{ error() }}</div>
+        <div class="empty-state" *ngIf="!loading() && filteredEmpresas().length === 0"><p>No hay empresas para mostrar.</p></div>
+        <div class="user-list" *ngIf="!loading() && filteredEmpresas().length > 0">
+          <article class="user-card" *ngFor="let empresa of filteredEmpresas(); trackBy: trackEmpresaById">
+            <div><h3>{{ empresa.name }}</h3><p>Rubro: {{ empresa.rubro }}</p></div>
+            <div class="card-actions"><button type="button" class="secondary" (click)="editEmpresa(empresa)">Editar</button><button type="button" class="danger" (click)="deleteEmpresa(empresa)">Eliminar</button></div>
+          </article>
+        </div>
+      </section>
+    </section>
+  </ng-template>
   <!-- Permissions Modal -->
   <div class="modal-overlay" *ngIf="permissionsModalUser() as user">
     <div class="modal-content">
@@ -223,103 +521,28 @@
     </div>
   </div>
 
-<!-- Add a new CSS class for the single-column form grid -->
-<style>
-  .form-grid-single {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: .75rem;
-  }
-
-  .task-summary-panel, .task-summary {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1rem;
-  }
-
-  .summary-card {
-    all: unset;
-    box-sizing: border-box;
-    display: block;
-    cursor: pointer;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 1rem;
-    padding: 1rem;
-    text-align: center;
-    transition: all 0.2s ease-in-out;
-  }
-
-  .summary-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
-  }
-
-  .summary-card.active {
-    background-color: #e0e7ff; /* Un color que indique que está activo */
-    border-color: #6366f1;
-  }
-
-  .summary-card.show-all {
-    background-color: #f1f5f9;
-    border-color: #cbd5e1;
-  }
-  .summary-card h4 { margin: 0 0 .5rem; color: #475569; }
-  .summary-card p { margin: 0; font-size: 2rem; font-weight: 700; color: #1e293b; }
-
-  .deleted-task {
-    opacity: 0.6;
-    background-color: #f1f5f9;
-  }
-
-  .deleted-indicator {
-    font-weight: bold;
-    color: #ef4444;
-  }
-
-  .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
-  .modal-content {
-    background: #fff;
-    padding: 2rem;
-    border-radius: 1rem;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-    width: 90%;
-    max-width: 500px;
-  }
-  .modal-content h2 {
-    margin-top: 0;
-  }
-  .permission-toggle {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 0;
-    border-top: 1px solid #e2e8f0;
-    border-bottom: 1px solid #e2e8f0;
-    margin: 1.5rem 0;
-  }
-  .permission-toggle label {
-    font-weight: 600;
-    color: #334155;
-  }
-  .modal-actions {
-    text-align: right;
-  }
-  .success {
-    background-color: #22c55e !important;
-    color: #fff !important;
-  }
-</style>
+  <!-- Admin Login Modal -->
+  <div class="modal-overlay" *ngIf="loginModalUser() as user">
+    <div class="modal-content">
+      <h2>Iniciar sesión como {{ user.name }}</h2>
+      <p>Por favor, ingrese la clave para continuar.</p>
+      <form (submit)="$event.preventDefault(); attemptLogin()">
+        <div class="form-grid-single">
+          <input
+            type="password"
+            placeholder="Clave"
+            [value]="passwordInput()"
+            (input)="passwordInput.set($any($event.target).value)"
+            aria-label="Clave"
+            autocomplete="current-password"
+          />
+        </div>
+        <div *ngIf="loginError()" class="status-bar error" style="margin-top: 1rem;">{{ loginError() }}</div>
+        <div class="modal-actions">
+          <button type="button" (click)="closeLoginModal()" class="secondary">Cancelar</button>
+          <button type="submit">Ingresar</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </main>

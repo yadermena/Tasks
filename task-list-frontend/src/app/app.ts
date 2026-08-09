@@ -10,7 +10,19 @@ interface User {
   name: string;
   email: string;
   role: UserRole;
+  password?: string;
+  company?: {
+    _id: string;
+    name: string;
+  } | null;
   canDelete?: boolean;
+  createdAt: string;
+}
+
+interface Empresa {
+  _id: string;
+  name: string;
+  rubro: string;
   createdAt: string;
 }
 
@@ -40,10 +52,26 @@ export class App {
   protected readonly query = signal('');
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
-  protected readonly form = signal({ name: '', email: '', role: 'viewer' as UserRole });
+  protected readonly isSidebarOpen = signal(false);
+  protected readonly form = signal({ name: '', email: '', role: 'viewer' as UserRole, password: '', companyId: null as string | null });
+  protected readonly isUserFormVisible = signal(false);
+  protected readonly showPassword = signal(false);
   protected readonly editingId = signal<string | null>(null);
   protected readonly permissionsModalUser = signal<User | null>(null);
+  protected readonly adminView = signal<'tasks' | 'users' | 'empresas' | 'configuraciones'>('users');
+  // Signals for admin login modal
+  protected readonly loginModalUser = signal<User | null>(null);
+  protected readonly passwordInput = signal('');
+  protected readonly loginError = signal<string | null>(null);
+  protected readonly selectedEmpresa = signal<Empresa | null>(null);
 
+  // Signals for companies
+  protected readonly empresas = signal<Empresa[]>([]);
+  protected readonly empresaForm = signal({ name: '', rubro: '' });
+  protected readonly editingEmpresaId = signal<string | null>(null);
+  protected readonly empresaQuery = signal('');
+
+  protected readonly realUser = signal<User | null>(null);
   // Signals for the "logged-in" user and their tasks
   protected readonly currentUser = signal<User | null>(null);
   protected readonly tasks = signal<Task[]>([]);
@@ -58,14 +86,96 @@ export class App {
   protected readonly currentFilterStatus = signal<'all' | Task['status'] | 'eliminadas'>('all');
   protected readonly deletedTasksCount = computed(() => this.tasks().filter(t => t.isDeleted).length);
 
-  protected readonly filteredUsers = computed(() => {
-    const term = this.query().trim().toLowerCase();
-    if (!term) {
-      return this.users();
+  protected getUserInitials(user: User): string {
+    if (!user?.name) return '';
+    const parts = user.name.trim().split(' ').filter(p => p);
+    if (parts.length > 1 && parts[parts.length - 1]) {
+      return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase();
+    }
+    return parts[0]?.charAt(0).toUpperCase() ?? '';
+  }
+
+  protected readonly avatarColors = computed(() => {
+    const users = this.users();
+    const initialsCount = new Map<string, number>();
+    for (const user of users) {
+      const initials = this.getUserInitials(user);
+      if (initials) {
+        initialsCount.set(initials, (initialsCount.get(initials) || 0) + 1);
+      }
     }
 
-    return this.users().filter((user) => {
+    const userColors = new Map<string, { background: string; text: string }>();
+    const colors = [
+      { background: '#e0e7ff', text: '#3730a3' }, // Default: indigo
+      { background: '#d1fae5', text: '#065f46' }, // green
+      { background: '#fef3c7', text: '#92400e' }, // amber
+      { background: '#fee2e2', text: '#991b1b' }, // red
+      { background: '#e0f2fe', text: '#075985' }, // sky
+      { background: '#fce7f3', text: '#9d174d' }, // pink
+      { background: '#e5e7eb', text: '#1f2937' }, // gray
+    ];
+
+    for (const user of users) {
+      const initials = this.getUserInitials(user);
+      if (initials && initialsCount.get(initials)! > 1) {
+        const charCodeSum = initials.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+        const colorIndex = (charCodeSum % (colors.length - 1)) + 1;
+        userColors.set(user._id, colors[colorIndex]);
+      } else {
+        userColors.set(user._id, colors[0]);
+      }
+    }
+    return userColors;
+  });
+
+  protected readonly currentUserInitials = computed(() => {
+    const user = this.currentUser();
+    if (!user) return '';
+    return this.getUserInitials(user);
+  });
+
+  protected readonly filteredUsers = computed(() => {
+    const term = this.query().trim().toLowerCase();
+    const nonAdminUsers = this.users().filter(user => user.role !== 'admin');
+    if (!term) {
+      return nonAdminUsers;
+    }
+
+    return nonAdminUsers.filter((user) => {
       return `${user.name} ${user.email} ${user.role}`.toLowerCase().includes(term);
+    });
+  });
+
+  protected readonly filteredAdminUsers = computed(() => {
+    const term = this.query().trim().toLowerCase();
+    const adminUsers = this.users().filter(user => user.role === 'admin');
+    if (!term) {
+      return adminUsers;
+    }
+    return adminUsers.filter((user) => {
+      return `${user.name} ${user.email}`.toLowerCase().includes(term);
+    });
+  });
+
+  protected readonly switchableUsers = computed(() => {
+    const realUser = this.realUser();
+    // When an admin is logged in, they can switch to any user but themselves.
+    if (realUser?.role === 'admin') {
+      return this.users().filter(user => user._id !== realUser._id);
+    }
+    // When not logged in, or a non-admin is logged in, the list is unfiltered.
+    // The login modal will handle authentication.
+    return this.users();
+  });
+
+  protected readonly filteredEmpresas = computed(() => {
+    const term = this.empresaQuery().trim().toLowerCase();
+    if (!term) {
+      return this.empresas();
+    }
+    return this.empresas().filter((empresa) => {
+      return `${empresa.name} ${empresa.rubro}`.toLowerCase().includes(term);
     });
   });
 
@@ -102,13 +212,15 @@ export class App {
       if (savedUserId) {
         // If so, load that user's data and tasks.
         // This makes it feel like a real session.
-        this.loginById(savedUserId);
+        void this.loginById(savedUserId);
       } else {
         // Otherwise, just load the admin dashboard.
         void this.loadUsers();
+        void this.loadEmpresas();
       }
     } else {
       void this.loadUsers();
+      void this.loadEmpresas();
     }
   }
 
@@ -116,7 +228,7 @@ export class App {
     this.query.set(value);
   }
 
-  protected updateField(field: 'name' | 'email' | 'role', value: string) {
+  protected updateField(field: 'name' | 'email' | 'role' | 'password' | 'companyId', value: string) {
     this.form.update((current) => ({ ...current, [field]: value }));
   }
 
@@ -125,13 +237,37 @@ export class App {
     await this.saveUser();
   }
 
+  protected openAddUserForm(isAdmin: boolean = false) {
+    this.resetForm();
+    this.isUserFormVisible.set(true);
+    if (isAdmin) {
+      this.form.update(f => ({ ...f, role: 'admin' }));
+    }
+  }
+
+  protected toggleSidebar() {
+    this.isSidebarOpen.update((isOpen) => !isOpen);
+  }
+
   // --- User "Session" Management ---
 
   protected login(user: User) {
+    this.loginModalUser.set(user);
+    this.passwordInput.set('');
+    this.loginError.set(null);
+    this.isSidebarOpen.set(false);
+  }
+
+  private _performLogin(user: User) {
     localStorage.setItem('currentUserId', user._id);
     this.currentUser.set(user);
     void this.loadTasks(); // Load tasks for the newly "logged-in" user
+    if (user.role === 'admin') {
+      void this.loadEmpresas();
+    }
+    this.isSidebarOpen.set(false);
   }
+
 
   protected async loginById(userId: string) {
     this.loading.set(true);
@@ -140,23 +276,53 @@ export class App {
       // For now, we load all users and find the one we need.
       const res = await fetch(`${API_BASE}/api/users`, { cache: 'no-cache' });
       if (!res.ok) throw new Error('Could not load users to find session user.');
-      const users = await res.json();
-      this.users.set(users);
-      const user = this.users().find(u => u._id === userId);
+      const allUsers: User[] = await res.json();
+      const user = allUsers.find(u => u._id === userId);
       if (user) {
-        this.login(user);
+        this.realUser.set(user); // This is the "real" user session
+        this._performLogin(user); // Directly perform login, bypassing password check for session restoration
+        // Always set all users in the sidebar, regardless of role
+        this.users.set(allUsers);
+        // If the user is an admin, set their default view to tasks.
+        // This is only for the initial load, subsequent admin navigation is handled by setAdminView.
+        if (user.role === 'admin') {
+          this.adminView.set('tasks'); 
+        }
       } else {
         this.logout(); // User not found, so log out.
       }
+    } catch (err) {
+      this.error.set(String(err));
+      this.logout();
     } finally {
       this.loading.set(false);
     }
   }
 
   protected logout() {
+    const realUser = this.realUser();
+    const currentUser = this.currentUser(); // cache it before it's set to null
+
+    // If we are impersonating (current user is not the real user),
+    // then "logout" means going back to the real user's view.
+    if (realUser && realUser._id !== this.currentUser()?._id) {
+        this._performLogin(realUser);
+        this.adminView.set('users');
+        // When an admin returns to their panel, they should see all users.
+        void this.loadUsers();
+        return;
+    }
+
+    // Otherwise, perform a full logout.
     localStorage.removeItem('currentUserId');
     this.currentUser.set(null);
-    this.tasks.set([]); // Clear tasks
+    this.realUser.set(null); // Clear real user on full logout
+    this.tasks.set([]);
+    this.adminView.set('users');
+    this.selectedEmpresa.set(null);
+    this.isSidebarOpen.set(false);
+    // After full logout, always load all users for the login screen.
+    void this.loadUsers();
   }
 
   protected async loadUsers() {
@@ -178,9 +344,14 @@ export class App {
   }
 
   protected async saveUser() {
-    const { name, email, role } = this.form();
+    const { name, email, role, password, companyId } = this.form();
     if (!name.trim() || !email.trim()) {
       this.error.set('Completa nombre y correo para guardar');
+      return;
+    }
+
+    if (!this.editingId() && !password.trim()) {
+      this.error.set('La clave es obligatoria para crear un nuevo usuario.');
       return;
     }
 
@@ -190,21 +361,33 @@ export class App {
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), role })
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), role, password, companyId })
       });
 
       if (!response.ok) {
-        throw new Error('No se pudo guardar el usuario');
+        // Try to get a specific message from the JSON response body
+        let errorMessage = 'No se pudo guardar el usuario';
+        try {
+          const errorBody = await response.json();
+          errorMessage = errorBody.message || errorMessage;
+        } catch (jsonError) {
+          // The response was not JSON, or there was another error.
+          // The generic error message will be used.
+        }
+        throw new Error(errorMessage);
       }
 
       const savedUser = await response.json();
       if (this.editingId()) {
-        this.users.update((current) => current.map((user) => (user._id === savedUser._id ? savedUser : user)));
+        this.users.update((current) =>
+          current.map((user) => (user._id === savedUser._id ? savedUser : user))
+        );
       } else {
         this.users.update((current) => [savedUser, ...current]);
       }
 
       this.resetForm();
+      this.isUserFormVisible.set(false);
     } catch (err) {
       this.error.set(String(err));
     }
@@ -212,16 +395,18 @@ export class App {
 
   protected editUser(user: User) {
     this.editingId.set(user._id);
-    this.form.set({ name: user.name, email: user.email, role: user.role });
+    this.form.set({ name: user.name, email: user.email, role: user.role, password: '', companyId: user.company?._id ?? null });
+    this.isUserFormVisible.set(true);
   }
 
   protected cancelEdit() {
     this.resetForm();
+    this.isUserFormVisible.set(false);
   }
 
   protected resetForm() {
     this.editingId.set(null);
-    this.form.set({ name: '', email: '', role: 'viewer' });
+    this.form.set({ name: '', email: '', role: 'viewer', password: '', companyId: null });
     this.error.set(null);
   }
 
@@ -229,7 +414,15 @@ export class App {
     try {
       const response = await fetch(`${API_BASE}/api/users/${user._id}`, { method: 'DELETE' });
       if (!response.ok) {
-        throw new Error('No se pudo eliminar el usuario');
+        let errorMessage = 'No se pudo eliminar el usuario';
+        try {
+          const errorBody = await response.json();
+          errorMessage = errorBody.message || errorMessage;
+        } catch (jsonError) {
+          // The response was not JSON, or there was another error.
+          // The generic error message will be used.
+        }
+        throw new Error(errorMessage);
       }
 
       this.users.update((current) => current.filter((item) => item._id !== user._id));
@@ -240,6 +433,126 @@ export class App {
 
   protected trackById(index: number, user: User) {
     return user._id;
+  }
+
+  protected trackEmpresaById(index: number, empresa: Empresa) {
+    return empresa._id;
+  }
+
+  // --- Company Management Methods ---
+
+  protected setAdminView(view: 'tasks' | 'users' | 'empresas' | 'configuraciones') {
+    this.adminView.set(view);
+  }
+
+  protected selectEmpresa(empresa: Empresa) {
+    if (this.selectedEmpresa()?._id === empresa._id) {
+      this.selectedEmpresa.set(null);
+    } else {
+      this.selectedEmpresa.set(empresa);
+    }
+    this.isSidebarOpen.set(false);
+  }
+
+  protected updateEmpresaQuery(value: string) {
+    this.empresaQuery.set(value);
+  }
+
+  protected updateEmpresaField(field: 'name' | 'rubro', value: string) {
+    this.empresaForm.update((current) => ({...current, [field]: value}));
+  }
+
+  protected async onEmpresaSubmit(event: Event) {
+    event.preventDefault();
+    await this.saveEmpresa();
+  }
+
+  protected async loadEmpresas() {
+    this.loading.set(true);
+    this.error.set(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/empresas`, { cache: 'no-cache' });
+      if (!response.ok) {
+        throw new Error('No se pudieron cargar las empresas');
+      }
+      this.empresas.set(await response.json());
+    } catch (err) {
+      this.error.set(String(err));
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  protected async saveEmpresa() {
+    const { name, rubro } = this.empresaForm();
+    if (!name.trim() || !rubro.trim()) {
+      this.error.set('Completa nombre y Rubro para guardar');
+      return;
+    }
+
+    try {
+      const method = this.editingEmpresaId() ? 'PUT' : 'POST';
+      const url = this.editingEmpresaId() ? `${API_BASE}/api/empresas/${this.editingEmpresaId()}` : `${API_BASE}/api/empresas`;
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), rubro: rubro.trim() })
+      });
+
+      if (!response.ok) {
+        // Try to get a specific message from the JSON response body
+        let errorMessage = 'No se pudo guardar la empresa';
+        try {
+          const errorBody = await response.json();
+          errorMessage = errorBody.message || errorMessage;
+        } catch (jsonError) {
+          // The response was not JSON, or there was another error.
+          // The generic error message will be used.
+        }
+        throw new Error(errorMessage);
+      }
+
+      const savedEmpresa = await response.json();
+      if (this.editingEmpresaId()) {
+        this.empresas.update((current) => current.map((empresa) => (empresa._id === savedEmpresa._id ? savedEmpresa : empresa)));
+      } else {
+        this.empresas.update((current) => [savedEmpresa, ...current]);
+      }
+
+      this.resetEmpresaForm();
+    } catch (err) {
+      this.error.set(String(err));
+    }
+  }
+
+  protected editEmpresa(empresa: Empresa) {
+    this.editingEmpresaId.set(empresa._id);
+    this.empresaForm.set({ name: empresa.name, rubro: empresa.rubro });
+  }
+
+  protected cancelEditEmpresa() {
+    this.resetEmpresaForm();
+  }
+
+  protected resetEmpresaForm() {
+    this.editingEmpresaId.set(null);
+    this.empresaForm.set({ name: '', rubro: '' });
+    this.error.set(null);
+  }
+
+  protected async deleteEmpresa(empresa: Empresa) {
+    if (!confirm(`¿Estás seguro de que quieres eliminar la empresa "${empresa.name}"?`)) {
+      return;
+    }
+    try {
+      const response = await fetch(`${API_BASE}/api/empresas/${empresa._id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        throw new Error('No se pudo eliminar la empresa');
+      }
+      this.empresas.update((current) => current.filter((item) => item._id !== empresa._id));
+    } catch (err) {
+      this.error.set(String(err));
+    }
   }
 
   protected trackTaskById(index: number, task: Task) {
@@ -471,6 +784,66 @@ export class App {
       this.error.set(String(err));
       // Close modal on error to avoid inconsistent state
       this.closePermissionsModal();
+    }
+  }
+
+  // --- Admin Login Modal Methods ---
+
+  protected closeLoginModal() {
+    this.loginModalUser.set(null);
+    this.passwordInput.set('');
+    this.loginError.set(null);
+  }
+
+  protected async attemptLogin() {
+    const user = this.loginModalUser();
+    if (!user) return;
+
+    this.loginError.set(null);
+
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email, password: this.passwordInput() })
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Clave incorrecta'; // Default error
+        try {
+          // The server might send a specific error message in JSON format
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch (jsonError) {
+          // If the response isn't JSON, it's likely an HTML error page from the server.
+          // We can log it for debugging but show a more generic message to the user.
+          console.error('Server returned a non-JSON error response. This might be an HTML error page. Body:', await response.text().catch(() => 'Could not read error body.'));
+          errorMessage = `Error del servidor (${response.status}). Verifique la consola del backend.`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const loggedInUser = await response.json();
+
+      // The `user` from `loginModalUser()` has the company info populated.
+      // A non-admin user must have a company to log in. This can either be
+      // pre-assigned to their profile or selected manually from the sidebar.
+      if (user.role !== 'admin' && !user.company && this.selectedEmpresa() === null) {
+        this.loginError.set('Debe seleccionar una empresa para ingresar.');
+        return; // Don't proceed
+      }
+
+      // The user object from the modal has the populated company.
+      // The loggedInUser from the auth endpoint is the source of truth for user data,
+      // but it's missing the populated company. Let's add it back from the `user`
+      // object we got from the list.
+      const finalUser = { ...loggedInUser, company: user.company };
+
+      this._performLogin(finalUser);
+      this.closeLoginModal();
+    } catch (err) {
+      // Display the error in the modal, removing the "Error: " prefix.
+      this.loginError.set(String(err).replace('Error: ', ''));
     }
   }
 }

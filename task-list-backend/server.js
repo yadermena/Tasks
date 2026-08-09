@@ -2,9 +2,11 @@ require('dotenv').config();
 
 const Task = require('./models/task');
 const User = require('./models/user');
+const Empresa = require('./models/empresa');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const crypto = require('crypto');
 
 const app = express();
 
@@ -12,6 +14,15 @@ app.use(cors());
 app.use(express.json());
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://ydrmena27:yader1989@cluster0.neh7d.mongodb.net/taskdb?appName=Cluster0';
+
+// Helper functions for password hashing
+function generateSalt() {
+  return crypto.randomBytes(16).toString('hex');
+}
+
+function hashPassword(password, salt) {
+  return crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+}
 
 mongoose.connect(MONGO_URI)
   .then(() => {
@@ -177,7 +188,7 @@ app.post('/api/tasks/:id/restore', async (req, res) => {
 // 5. Obtener usuarios
 app.get('/api/users', async (req, res) => {
   try {
-    const users = await User.find().sort({ createdAt: -1 });
+    const users = await User.find().populate('companies', 'name').sort({ createdAt: -1 });
     res.json(users);
   } catch (error) {
     console.error('Error al obtener los usuarios:', error);
@@ -189,7 +200,7 @@ app.get('/api/users', async (req, res) => {
 // 6. Crear usuario
 app.post('/api/users', async (req, res) => {
   try {
-    const { name, email, role } = req.body;
+    const { name, email, role, password, companyIds } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ message: 'El nombre es obligatorio' });
@@ -199,15 +210,40 @@ app.post('/api/users', async (req, res) => {
       return res.status(400).json({ message: 'El correo es obligatorio' });
     }
 
+    if (!password || !password.trim()) {
+      return res.status(400).json({ message: 'La clave es obligatoria' });
+    }
+
+    if (companyIds && companyIds.length > 0) {
+      const existingAssignment = await User.findOne({ companies: { $in: companyIds } });
+      if (existingAssignment) {
+        const assignedCompany = await Empresa.findById(companyIds.find(id => existingAssignment.companies.includes(id)));
+        return res.status(409).json({ message: `La empresa '${assignedCompany.name}' ya está asignada a otro usuario.` });
+      }
+    }
+
+    const salt = generateSalt();
+    const hashedPassword = hashPassword(password, salt);
+
     const user = new User({
       name: name.trim(),
       email: email.trim(),
-      role: role || 'viewer'
+      role: role || 'viewer',
+      password: hashedPassword,
+      salt: salt,
+      companies: companyIds || [],
     });
 
     const createdUser = await user.save();
-    res.status(201).json(createdUser);
+    const populatedUser = await User.findById(createdUser._id)
+      .populate('companies', 'name')
+      .select('-password -salt');
+
+    res.status(201).json(populatedUser);
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ message: `El correo '${req.body.email}' ya existe.` });
+    }
     console.error('Error al crear el usuario:', error);
     const errorMessage = process.env.NODE_ENV === 'production' ? {} : { error: error.message };
     res.status(500).json({ message: 'Error al crear el usuario', ...errorMessage });
@@ -217,10 +253,34 @@ app.post('/api/users', async (req, res) => {
 // 7. Actualizar usuario
 app.put('/api/users/:id', async (req, res) => {
   try {
-    const updatedUser = await User.findByIdAndUpdate(req.params.id, req.body, {
+    const updateData = { ...req.body };
+    // If a new password is provided, hash it.
+    if (updateData.password && updateData.password.trim() !== '') {
+      updateData.salt = generateSalt();
+      updateData.password = hashPassword(updateData.password, updateData.salt);
+    } else {
+      // Do not overwrite password with an empty string or update it if not provided
+      delete updateData.password;
+    }
+    if (updateData.hasOwnProperty('companyIds')) {
+      const companyIds = updateData.companyIds || [];
+      if (companyIds.length > 0) {
+        const existingAssignment = await User.findOne({ companies: { $in: companyIds }, _id: { $ne: req.params.id } });
+        if (existingAssignment) {
+          const assignedCompany = await Empresa.findById(companyIds.find(id => existingAssignment.companies.includes(id)));
+          return res.status(409).json({ message: `La empresa '${assignedCompany.name}' ya está asignada a otro usuario.` });
+        }
+      }
+      updateData.companies = companyIds;
+      delete updateData.companyIds;
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true
-    });
+    })
+      .populate('companies', 'name')
+      .select('-password -salt'); // Do not return password or salt
 
     if (!updatedUser) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
@@ -228,6 +288,9 @@ app.put('/api/users/:id', async (req, res) => {
 
     res.json(updatedUser);
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ message: `El correo '${req.body.email}' ya existe.` });
+    }
     console.error('Error al actualizar el usuario:', error);
     const errorMessage = process.env.NODE_ENV === 'production' ? {} : { error: error.message };
     res.status(500).json({ message: 'Error al actualizar el usuario', ...errorMessage });
@@ -248,6 +311,104 @@ app.delete('/api/users/:id', async (req, res) => {
     console.error('Error al eliminar el usuario:', error);
     const errorMessage = process.env.NODE_ENV === 'production' ? {} : { error: error.message };
     res.status(500).json({ message: 'Error al eliminar el usuario', ...errorMessage });
+  }
+});
+
+// --- AUTH ROUTES ---
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email y clave son requeridos' });
+    }
+
+    // Find user by email but don't exclude password from this specific query
+    const user = await User.findOne({ email }).select('+password +salt');
+
+    if (!user || !user.salt) {
+      return res.status(401).json({ message: 'Usuario o clave incorrecta' });
+    }
+
+    const hashedPassword = hashPassword(password, user.salt);
+
+    if (user.password !== hashedPassword) {
+      return res.status(401).json({ message: 'Usuario o clave incorrecta' });
+    }
+
+    // Now that user is authenticated, populate and remove sensitive fields
+    await user.populate({ path: 'companies', select: 'name' });
+    const userObject = user.toObject();
+    delete userObject.password;
+    delete userObject.salt;
+    res.json(userObject);
+  } catch (error) {
+    console.error('Error during login:', error);
+    res.status(500).json({ message: 'Error en el servidor durante el inicio de sesión' });
+  }
+});
+
+// --- RUTAS DE EMPRESAS ---
+
+// Obtener empresas
+app.get('/api/empresas', async (req, res) => {
+  try {
+    const empresas = await Empresa.find().sort({ createdAt: -1 });
+    res.json(empresas);
+  } catch (error) {
+    console.error('Error al obtener las empresas:', error);
+    const errorMessage = process.env.NODE_ENV === 'production' ? {} : { error: error.message };
+    res.status(500).json({ message: 'Error al obtener las empresas', ...errorMessage });
+  }
+});
+
+// Crear empresa
+app.post('/api/empresas', async (req, res) => {
+  try {
+    const { name, rubro } = req.body;
+    if (!name || !name.trim() || !rubro || !rubro.trim()) {
+      return res.status(400).json({ message: 'Nombre y Rubro son obligatorios' });
+    }
+    const empresa = new Empresa({ name: name.trim(), rubro: rubro.trim() });
+    const createdEmpresa = await empresa.save();
+    res.status(201).json(createdEmpresa);
+  } catch (error) {
+    console.error('Error al crear la empresa:', error);
+    const errorMessage = process.env.NODE_ENV === 'production' ? {} : { error: error.message };
+    res.status(500).json({ message: 'Error al crear la empresa', ...errorMessage });
+  }
+});
+
+// Actualizar empresa
+app.put('/api/empresas/:id', async (req, res) => {
+  try {
+    const updatedEmpresa = await Empresa.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true
+    });
+    if (!updatedEmpresa) {
+      return res.status(404).json({ message: 'Empresa no encontrada' });
+    }
+    res.json(updatedEmpresa);
+  } catch (error) {
+    console.error('Error al actualizar la empresa:', error);
+    const errorMessage = process.env.NODE_ENV === 'production' ? {} : { error: error.message };
+    res.status(500).json({ message: 'Error al actualizar la empresa', ...errorMessage });
+  }
+});
+
+// Eliminar empresa
+app.delete('/api/empresas/:id', async (req, res) => {
+  try {
+    const deletedEmpresa = await Empresa.findByIdAndDelete(req.params.id);
+    if (!deletedEmpresa) {
+      return res.status(404).json({ message: 'Empresa no encontrada' });
+    }
+    res.json({ message: 'Empresa eliminada correctamente' });
+  } catch (error) {
+    console.error('Error al eliminar la empresa:', error);
+    const errorMessage = process.env.NODE_ENV === 'production' ? {} : { error: error.message };
+    res.status(500).json({ message: 'Error al eliminar la empresa', ...errorMessage });
   }
 });
 
