@@ -1,140 +1,325 @@
 <main class="app-shell">
-  <section class="task-panel">
-    <header class="task-header">
-      <h1>{{ title() }}</h1>
-      <p>Organiza tus tareas de una forma sencilla.</p>
+  <!-- If an admin is logged in, show the user admin panel above the task list -->
+  <ng-container *ngIf="currentUser()?.role === 'admin'">
+    <ng-container *ngTemplateOutlet="userAdmin"></ng-container>
+  </ng-container>
+
+  <!-- Task Dashboard: show if any user is "logged in" -->
+  <section *ngIf="currentUser() as user; else userAdmin" class="dashboard-panel" [style.margin-top]="currentUser()?.role === 'admin' ? '1rem' : '0'">
+    <header class="dashboard-header">
+      <div>
+        <p class="eyebrow">Tareas de</p>
+        <h1>{{ user.name }}</h1>
+        <p>Aquí puedes gestionar las tareas para este usuario.</p>
+      </div>
+      <button (click)="logout()" class="secondary">Cerrar Sesión</button>
     </header>
 
-    <form class="task-form" (submit)="onSubmit($event)">
-      <input
-        type="text"
-        placeholder="Agregar tarea..."
-        [value]="inputValue()"
-        (input)="updateInput($any($event.target).value)"
-        aria-label="Nueva tarea"
-      />
-      <button type="submit">Agregar</button>
+    <!-- Form to add a new task -->
+    <form class="user-form" (submit)="addTask($event)">
+      <h2>Nueva Tarea</h2>
+      <div class="form-grid-single">
+        <input
+          type="text"
+          placeholder="Nombre de la tarea"
+          aria-label="Nombre de la tarea"
+          [value]="newTaskName()"
+          (input)="updateNewTaskName($any($event.target).value)"
+        />
+      </div>
+      <div class="form-actions">
+        <button type="submit">Agregar Tarea</button>
+      </div>
     </form>
 
-    <div class="task-controls">
-      <input
-        type="search"
-        placeholder="Buscar tarea..."
-        [value]="query()"
-        (input)="updateQuery($any($event.target).value)"
-        aria-label="Buscar tareas"
-      />
-      <div class="page-box">
-        <button type="button" class="show-button" (click)="togglePageSizeDropdown()">
-          Mostrar tareas
-        </button>
-        <div class="page-size-dropdown" *ngIf="showPageSizeDropdown()">
-          <select [value]="pageSize()" (change)="setPageSize($any($event.target).value)">
-            <option value="10">10</option>
-            <option value="20">20</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
+    <!-- Task Summary Panel -->
+    <section class="task-summary-panel">
+      <button
+        type="button"
+        class="summary-card"
+        [class.active]="currentFilterStatus() === 'ejecutando'"
+        (click)="setFilterStatus('ejecutando')"
+      >
+        <h4>Ejecutando</h4>
+        <p>{{ runningTasksCount() }}</p>
+      </button>
+      <button
+        type="button"
+        class="summary-card"
+        [class.active]="currentFilterStatus() === 'acumulada'"
+        (click)="setFilterStatus('acumulada')"
+      >
+        <h4>Acumulada</h4>
+        <p>{{ accumulatedTasksCount() }}</p>
+      </button>
+      <button type="button" class="summary-card" [class.active]="currentFilterStatus() === 'completada'" (click)="setFilterStatus('completada')">
+        <h4>Completada</h4>
+        <p>{{ completedTasksCount() }}</p>
+      </button>
+      <button
+        type="button"
+        class="summary-card"
+        *ngIf="currentUser()?.role === 'admin'"
+        [class.active]="currentFilterStatus() === 'eliminadas'"
+        (click)="setFilterStatus('eliminadas')"
+      >
+        <h4>Eliminadas</h4>
+        <p>{{ deletedTasksCount() }}</p>
+      </button>
+      <button type="button" class="summary-card show-all" [class.active]="currentFilterStatus() === 'all'" (click)="setFilterStatus('all')">
+        <h4>Mostrar Todo</h4>
+      </button>
+    </section>
+
+    <!-- Task List -->
+    <section class="users-section">
+      <div class="users-toolbar">
+        <h2>Lista de Tareas</h2>
+        <input
+          type="search"
+          [placeholder]="currentUser()?.role === 'admin' ? 'Buscar tarea o usuario...' : 'Buscar tarea...'"
+          aria-label="Buscar tareas"
+          [value]="taskQuery()"
+          (input)="updateTaskQuery($any($event.target).value)"
+        />
+      </div>
+
+      <div *ngIf="taskLoading()" class="status-bar">Cargando tareas...</div>
+      <div *ngIf="!taskLoading() && error()" class="status-bar error">{{ error() }}</div>
+      <div *ngIf="!taskLoading() && !error() && tasks().length === 0" class="empty-state">
+        <p>Este usuario aún no tiene tareas.</p>
+      </div>
+      <div *ngIf="!taskLoading() && !error() && tasks().length > 0 && filteredTasks().length === 0" class="empty-state">
+        <p>No se encontraron tareas que coincidan con la búsqueda.</p>
+      </div>
+
+      <div *ngIf="!taskLoading() && filteredTasks().length > 0" class="user-list">
+        <article class="user-card" [class.deleted-task]="task.isDeleted" *ngFor="let task of filteredTasks(); trackBy: trackTaskById">
+          <div>
+            <h3>{{ task.name }}</h3>
+            <p>
+              Estado: {{ task.status }}
+              <span *ngIf="task.isDeleted" class="deleted-indicator">(Eliminada)</span>
+            </p>
+            <!-- Si es admin, muestra a qué usuario pertenece la tarea -->
+            <p *ngIf="currentUser()?.role === 'admin' && task.userId" class="task-user">
+              Usuario: {{ task.userId.name }}
+            </p>
+          </div>
+          <div class="card-actions">
+            <select [value]="task.status" (change)="updateTaskStatus(task, $any($event.target).value)" aria-label="Cambiar estado de la tarea" [disabled]="(task.isDeleted || task.completed) && currentUser()?.role !== 'admin'">
+              <option value="ejecutando">Ejecutando</option>
+              <option value="acumulada">Acumulada</option>
+              <option value="completada">Completada</option>
+            </select>
+            <!-- Admin-only button for deleted tasks -->
+            <button *ngIf="currentUser()?.role === 'admin' && task.isDeleted" type="button" (click)="restoreTask(task)">Restaurar</button>
+            <!-- Delete button for active tasks -->
+            <button *ngIf="!task.isDeleted && (currentUser()?.role === 'admin' || currentUser()?.canDelete || task.completed)" type="button" class="danger" (click)="deleteTask(task)">Eliminar</button>
+          </div>
+        </article>
+      </div>
+    </section>
+  </section>
+
+  <!-- User Admin Dashboard if no user is "logged in" -->
+  <ng-template #userAdmin>
+    <section class="dashboard-panel">
+      <header class="dashboard-header">
+        <div>
+          <p class="eyebrow">Administración</p>
+          <h1>{{ title() }}</h1>
+          <p>Administra usuarios, roles y accesos desde un solo lugar.</p>
+        </div>
+      </header>
+
+      <form class="user-form" (submit)="onSubmit($event)">
+        <h2>{{ editingId() ? 'Editar usuario' : 'Agregar usuario' }}</h2>
+        <div class="form-grid">
+          <input
+            type="text"
+            placeholder="Nombre"
+            [value]="form().name"
+            (input)="updateField('name', $any($event.target).value)"
+            aria-label="Nombre del usuario"
+          />
+          <input
+            type="email"
+            placeholder="Correo"
+            [value]="form().email"
+            (input)="updateField('email', $any($event.target).value)"
+            aria-label="Correo del usuario"
+          />
+          <select [value]="form().role" (change)="updateField('role', $any($event.target).value)">
+            <option value="admin">Admin</option>
+            <option value="editor">Editor</option>
+            <option value="viewer">Viewer</option>
           </select>
         </div>
+        <div class="form-actions">
+          <button type="submit">{{ editingId() ? 'Guardar cambios' : 'Crear usuario' }}</button>
+          <button type="button" class="secondary" (click)="cancelEdit()" *ngIf="editingId()">Cancelar</button>
+        </div>
+      </form>
+
+      <section class="users-section">
+        <div class="users-toolbar">
+          <h2>Usuarios</h2>
+          <input
+            type="search"
+            placeholder="Buscar usuario..."
+            [value]="query()"
+            (input)="updateQuery($any($event.target).value)"
+            aria-label="Buscar usuarios"
+          />
+        </div>
+
+        <div class="status-bar" *ngIf="loading()">Cargando usuarios...</div>
+        <div class="status-bar error" *ngIf="error()">{{ error() }}</div>
+
+        <div class="empty-state" *ngIf="!loading() && filteredUsers().length === 0">
+          <p>No hay usuarios para mostrar.</p>
+        </div>
+
+        <div class="user-list" *ngIf="!loading() && filteredUsers().length > 0">
+          <article class="user-card" *ngFor="let user of filteredUsers(); trackBy: trackById">
+            <div>
+              <h3>{{ user.name }}</h3>
+              <p>{{ user.email }}</p>
+            </div>
+            <div class="user-meta">
+              <span class="role-badge" [ngClass]="'role-' + user.role">{{ user.role }}</span>
+              <div class="card-actions">
+                <button type="button" class="secondary" (click)="editUser(user)">Editar</button>
+                <button type="button" class="secondary" (click)="openPermissionsModal(user)">Permisos</button>
+                <button type="button" class="danger" (click)="deleteUser(user)">Eliminar</button>
+                <!-- This is the new button to "log in" as a user -->
+                <button type="button" class="secondary" (click)="login(user)">Ver Tareas</button>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </section>
+  </ng-template>
+
+  <!-- Permissions Modal -->
+  <div class="modal-overlay" *ngIf="permissionsModalUser() as user">
+    <div class="modal-content">
+      <h2>Permisos para {{ user.name }}</h2>
+      <div class="permission-toggle">
+        <label for="can-delete">Permiso para Eliminar Tareas</label>
+        <button
+          type="button"
+          (click)="toggleDeletePermission(user)"
+          [ngClass]="!!user.canDelete ? 'danger' : 'success'"
+        >
+          {{ !!user.canDelete ? 'Quitar Permiso' : 'Dar Permiso' }}
+        </button>
+      </div>
+      <div class="modal-actions">
+        <button type="button" (click)="closePermissionsModal()" class="secondary">Cerrar</button>
       </div>
     </div>
-    <div class="filter-window">
-      <button
-        type="button"
-        (click)="applyFilterMode('all')"
-        [class.active]="filterMode() === 'all'"
-      >
-        Mostrar todas
-      </button>
-      <button
-        type="button"
-        (click)="applyFilterMode('completada')"
-        [class.active]="filterMode() === 'completada'"
-      >
-        Completada
-      </button>
-      <button
-        type="button"
-        (click)="applyFilterMode('ejecutando')"
-        [class.active]="filterMode() === 'ejecutando'"
-      >
-        Ejecutando
-      </button>
-      <button
-        type="button"
-        (click)="applyFilterMode('acumulada')"
-        [class.active]="filterMode() === 'acumulada'"
-      >
-        Acumulada
-      </button>
-    </div>
-    <div class="task-summary" *ngIf="!loading()">
-      <p>Tareas encontradas: {{ filteredTasks().length }} / Total en página: {{ pagedTasks().length }}</p>
-    </div>
+  </div>
 
-    <div class="status-bar" *ngIf="loading()">Cargando tareas...</div>
-    <div class="status-bar error" *ngIf="error()">{{ error() }}</div>
+<!-- Add a new CSS class for the single-column form grid -->
+<style>
+  .form-grid-single {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .75rem;
+  }
 
-    <div class="empty-state" *ngIf="!loading() && filteredTasks().length === 0">
-      <p>No tienes tareas pendientes.</p>
-    </div>
+  .task-summary-panel, .task-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
 
-    <ul class="task-list" *ngIf="!loading() && filteredTasks().length > 0">
-      <li *ngFor="let task of pagedTasks(); trackBy: trackById" class="task-item">
-        <div class="task-content">
-          <p>{{ task.name }}</p>
-          <span class="task-status">{{ displayStatus(task) }}</span>
-        </div>
+  .summary-card {
+    all: unset;
+    box-sizing: border-box;
+    display: block;
+    cursor: pointer;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    padding: 1rem;
+    text-align: center;
+    transition: all 0.2s ease-in-out;
+  }
 
-        <div class="task-actions">
-          <button
-            type="button"
-            [class.active]="task.status === 'completada'"
-            (click)="setTaskStatus(task, 'completada')"
-            [disabled]="isTaskBlocked(task)"
-          >
-            Completada
-          </button>
-          <button
-            type="button"
-            [class.active]="task.status === 'ejecutando'"
-            (click)="setTaskStatus(task, 'ejecutando')"
-            [disabled]="isTaskBlocked(task)"
-          >
-            Ejecutando
-          </button>
-          <button
-            type="button"
-            [class.active]="task.status === 'acumulada'"
-            (click)="setTaskStatus(task, 'acumulada')"
-            [disabled]="task.status === 'completada'"
-          >
-            Acumulada
-          </button>
-          <button
-            type="button"
-            class="btn-delete"
-            (click)="deleteTask(task)"
-            [disabled]="!task.completed || task.isDeleted"
-            [attr.aria-label]="task.completed === false ? 'Acción especial' : 'Eliminar tarea'"
-          >
-            Eliminar
-          </button>
-        </div>
-      </li>
-    </ul>
+  .summary-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+  }
 
-    <div class="pagination" *ngIf="!loading() && filteredTasks().length > 0">
-      <button type="button" (click)="gotoFirstPage()" [disabled]="pageIndex() === 0">
-        « Primera página
-      </button>
-      <button type="button" (click)="gotoPreviousPage()" [disabled]="pageIndex() === 0">
-        « Anterior
-      </button>
-      <span>Página {{ pageIndex() + 1 }} de {{ totalPages() }}</span>
-      <button type="button" (click)="gotoNextPage()" [disabled]="pageIndex() === totalPages() - 1">
-        Siguiente »
-      </button>
-    </div>
-  </section>
+  .summary-card.active {
+    background-color: #e0e7ff; /* Un color que indique que está activo */
+    border-color: #6366f1;
+  }
+
+  .summary-card.show-all {
+    background-color: #f1f5f9;
+    border-color: #cbd5e1;
+  }
+  .summary-card h4 { margin: 0 0 .5rem; color: #475569; }
+  .summary-card p { margin: 0; font-size: 2rem; font-weight: 700; color: #1e293b; }
+
+  .deleted-task {
+    opacity: 0.6;
+    background-color: #f1f5f9;
+  }
+
+  .deleted-indicator {
+    font-weight: bold;
+    color: #ef4444;
+  }
+
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  .modal-content {
+    background: #fff;
+    padding: 2rem;
+    border-radius: 1rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    width: 90%;
+    max-width: 500px;
+  }
+  .modal-content h2 {
+    margin-top: 0;
+  }
+  .permission-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 0;
+    border-top: 1px solid #e2e8f0;
+    border-bottom: 1px solid #e2e8f0;
+    margin: 1.5rem 0;
+  }
+  .permission-toggle label {
+    font-weight: 600;
+    color: #334155;
+  }
+  .modal-actions {
+    text-align: right;
+  }
+  .success {
+    background-color: #22c55e !important;
+    color: #fff !important;
+  }
+</style>
 </main>

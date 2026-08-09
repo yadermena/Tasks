@@ -3,6 +3,13 @@ import { App } from './app';
 
 describe('App', () => {
   beforeEach(async () => {
+    spyOn(window as any, 'fetch').and.returnValue(
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve([]),
+      }) as Promise<Response>
+    );
+
     await TestBed.configureTestingModule({
       imports: [App],
     }).compileComponents();
@@ -14,10 +21,10 @@ describe('App', () => {
     expect(app).toBeTruthy();
   });
 
-  it('should render title', async () => {
+  it('should render the login form when not authenticated', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, task-list-frontend');
+    expect(compiled.textContent).toContain('Iniciar sesión');
   });
 });
