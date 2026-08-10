@@ -2,6 +2,32 @@
   <!-- Hamburger menu button -->
   <button class="hamburger-menu" (click)="toggleSidebar()">☰</button>
 
+  <!-- User profile and logout button -->
+  <div *ngIf="currentUser() as user" class="header-actions">
+    <div class="profile-menu-container">
+      <div
+        class="profile-avatar"
+        (click)="isProfileMenuOpen.update(v => !v)"
+        [title]="user.name"
+        [style.background-color]="avatarColors().get(user._id)?.background"
+        [style.color]="avatarColors().get(user._id)?.text">
+        {{ currentUserInitials() }}
+      </div>
+
+      <div class="profile-menu" *ngIf="isProfileMenuOpen()">
+        <div class="profile-menu-header">
+          <strong>{{ user.name }}</strong>
+          <span>{{ user.email }}</span>
+        </div>
+        <hr>
+        <ul>
+          <li *ngIf="user.role === 'admin' || (user.role === 'editor' && user.canEditProfile)"><button (click)="editUser(user)">Configurar mi Perfil</button></li>
+          <li><button (click)="logout()">{{ realUser()?.role === 'admin' && currentUser()?._id !== realUser()?._id ? 'Volver al Panel' : 'Cerrar Sesión' }}</button></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
   <!-- Sidebar -->
   <aside class="sidebar" [class.open]="isSidebarOpen()">
     <div class="sidebar-header">
@@ -43,7 +69,7 @@
       <hr>
       <h3 class="sidebar-subtitle">Seleccionar Empresa</h3>
       <ul class="user-selection-list" style="flex-grow: 0;">
-        <li *ngIf="loading()">Cargando empresas...</li>
+        <li *ngIf="loading()">Cargando tareas...</li>
         <li *ngIf="!loading() && empresas().length === 0">No hay empresas.</li>
         <li *ngFor="let empresa of empresas(); trackBy: trackEmpresaById">
           <button (click)="selectEmpresa(empresa)" [class.active]="selectedEmpresa()?._id === empresa._id">
@@ -56,69 +82,20 @@
 
   <div class="main-content">
     <!-- View switcher for admin -->
-    <!-- Admin Panels when logged out -->
     <ng-container *ngIf="currentUser() === null">
-      <section class="dashboard-panel">
-        <header class="dashboard-header">
-          <div>
-            <p class="eyebrow">Bienvenido</p>
-            <h1>Panel de Acceso</h1>
-            <p>Por favor, elija una empresa y luego un usuario para ingresar.</p>
-          </div>
-        </header>
-
-        <!-- Company Selection -->
-        <section class="users-section">
-          <div class="users-toolbar">
-            <h2>1. Seleccione una Empresa</h2>
-          </div>
-          <div class="status-bar" *ngIf="loading()">Cargando empresas...</div>
-          <div class="status-bar error" *ngIf="error()">{{ error() }}</div>
-          <div class="empty-state" *ngIf="!loading() && empresas().length === 0"><p>No hay empresas para mostrar.</p></div>
-          <div class="user-list" *ngIf="!loading() && empresas().length > 0">
-            <button 
-              *ngFor="let empresa of empresas(); trackBy: trackEmpresaById"
-              class="company-select-button" 
-              (click)="selectEmpresa(empresa)" 
-              [class.active]="selectedEmpresa()?._id === empresa._id"
-            >
-              <h3>{{ empresa.name }}</h3>
-              <p>Rubro: {{ empresa.rubro }}</p>
-            </button>
-          </div>
-        </section>
-
-        <!-- User Selection (shown after company is selected) -->
-        <ng-container *ngIf="selectedEmpresa()">
-          <section class="users-section" style="margin-top: 1.5rem;">
-            <div class="users-toolbar">
-              <h2>2. Seleccione un Usuario</h2>
-            </div>
-            <div class="status-bar" *ngIf="loading()">Cargando usuarios...</div>
-            <div class="status-bar error" *ngIf="error()">{{ error() }}</div>
-            <div class="empty-state" *ngIf="!loading() && users().length === 0"><p>No hay usuarios para mostrar.</p></div>
-            <div class="user-list" *ngIf="!loading() && users().length > 0">
-              <article class="user-card" *ngFor="let user of users(); trackBy: trackById">
-                <div class="user-info">
-                  <button class="user-avatar-button" (click)="login(user)" [title]="'Ingresar como ' + user.name">
-                    {{ user.name.charAt(0) }}
-                  </button>
-                  <div>
-                    <h3>{{ user.name }}</h3>
-                    <p>{{ user.email }}</p>
-                  </div>
-                </div>
-              </article>
-            </div>
-          </section>
-        </ng-container>
-      </section>
+      <ng-container *ngTemplateOutlet="userAdmin"></ng-container>
     </ng-container>
 
     <!-- User Admin Panel -->
     <ng-container *ngIf="currentUser()?.role === 'admin' && adminView() === 'users'">
       <ng-container *ngTemplateOutlet="userAdmin"></ng-container>
     </ng-container>
+
+    <!-- User profile edit form for non-admins (uses the userAdmin template) -->
+    <ng-container *ngIf="isUserFormVisible() && currentUser()?.role !== 'admin'">
+      <ng-container *ngTemplateOutlet="userAdmin"></ng-container>
+    </ng-container>
+
     <!-- Empresa Admin Panel -->
     <ng-container *ngIf="currentUser()?.role === 'admin' && adminView() === 'empresas'">
       <ng-container *ngTemplateOutlet="empresaAdmin"></ng-container>
@@ -130,38 +107,49 @@
 
     <!-- Task Dashboard: show if any user is "logged in" -->
     <ng-container *ngIf="currentUser() as user">
-      <section *ngIf="user.role !== 'admin' || adminView() === 'tasks'" class="dashboard-panel task-dashboard">
+      <section *ngIf="(user.role !== 'admin' || adminView() === 'tasks') && !(isUserFormVisible() && user.role !== 'admin')" class="dashboard-panel task-dashboard">
         <header class="dashboard-header">
           <div *ngIf="user.role !== 'admin'">
             <p class="eyebrow">Tareas de</p>
             <h1>{{ user.name }}</h1>
             <p>Aquí puedes gestionar las tareas para este usuario.</p>
           </div>
-          <!-- User profile and logout button -->
-          <div class="header-actions">
-            <button (click)="logout()" class="secondary">
-              {{ realUser()?.role === 'admin' ? 'Volver al Panel' : 'Cerrar Sesión' }}
-            </button>
-            <div class="profile-avatar" [title]="user.name">
-              {{ currentUserInitials() }}
-            </div>
-          </div>
         </header>
 
-    <!-- Form to add a new task -->
-    <form class="user-form" (submit)="addTask($event)" *ngIf="user.role !== 'admin'">
-      <h2>Nueva Tarea</h2>
-      <div class="form-grid-single">
-        <input
-          type="text"
-          placeholder="Nombre de la tarea"
-          aria-label="Nombre de la tarea"
-          [value]="newTaskName()"
-          (input)="updateNewTaskName($any($event.target).value)"
-        />
+    <div class="user-form-placeholder" *ngIf="!isTaskFormVisible()">
+      <button (click)="openAddTaskForm()">AGREGAR TAREA</button>
+    </div>
+
+    <!-- Form to add/edit a task -->
+    <form class="user-form" (submit)="saveTask($event)" *ngIf="isTaskFormVisible()">
+      <h2>{{ editingTask() ? 'Editar Tarea' : 'Nueva Tarea' }}</h2>
+      <div class="form-grid">
+        <div class="form-field-group">
+          <label for="task-name">Nombre de la tarea</label>
+          <input
+            id="task-name"
+            type="text"
+            placeholder="Nombre de la tarea"
+            aria-label="Nombre de la tarea"
+            [value]="taskForm().name"
+            (input)="updateTaskFormField('name', $any($event.target).value)"
+          />
+        </div>
+        <div class="form-field-group">
+          <label for="task-status">Estado</label>
+          <select
+            id="task-status"
+            [value]="taskForm().status"
+            (change)="updateTaskFormField('status', $any($event.target).value)"
+          >
+            <option value="ejecutando">Ejecutando</option>
+            <option value="acumulada">Acumulada</option>
+          </select>
+        </div>
       </div>
       <div class="form-actions">
-        <button type="submit">Agregar Tarea</button>
+        <button type="submit">{{ editingTask() ? 'Guardar Tarea' : 'Agregar Tarea' }}</button>
+        <button type="button" class="secondary" (click)="cancelEditTask()">Cancelar</button>
       </div>
     </form>
 
@@ -247,8 +235,9 @@
             </select>
             <!-- Admin-only button for deleted tasks -->
             <button *ngIf="currentUser()?.role === 'admin' && task.isDeleted" type="button" (click)="restoreTask(task)">Restaurar</button>
-            <!-- Delete button for active tasks -->
-            <button *ngIf="!task.isDeleted && (currentUser()?.role === 'admin' || currentUser()?.canDelete || task.completed)" type="button" class="danger" (click)="deleteTask(task)">Eliminar</button>
+            <!-- Delete button for active tasks, requires admin role or canDelete permission-->
+            <button *ngIf="!task.isDeleted && (user.role === 'admin' || user.canDelete)" type="button" class="danger" (click)="deleteTask(task)">Eliminar</button>
+            <button *ngIf="!task.isDeleted && (user.role === 'admin' || user.canEditTask)" type="button" class="secondary" (click)="editTask(task)">Editar</button>
           </div>
         </article>
       </div>
@@ -259,7 +248,7 @@
   <!-- User Admin Dashboard if no user is "logged in" -->
   <ng-template #userAdmin>
     <section class="dashboard-panel">
-      <header class="dashboard-header">
+      <header class="dashboard-header" *ngIf="currentUser()?.role === 'admin' || currentUser() === null">
         <div>
           <p class="eyebrow">Administración</p>
           <h1>{{ title() }}</h1>
@@ -267,7 +256,7 @@
         </div>
       </header>
 
-      <div class="user-form-placeholder" *ngIf="!isUserFormVisible()">
+      <div class="user-form-placeholder" *ngIf="!isUserFormVisible() && currentUser()?.role === 'admin'">
         <button (click)="openAddUserForm(false)">AGREGAR USUARIO</button>
       </div>
 
@@ -289,21 +278,15 @@
               (input)="updateField('email', $any($event.target).value)"
               aria-label="Correo del usuario"
             />
-            <select [value]="form().role" (change)="updateField('role', $any($event.target).value)">
+            <select *ngIf="currentUser()?.role === 'admin'" [value]="form().role" (change)="updateField('role', $any($event.target).value)">
               <option value="admin">Admin</option>
               <option value="editor">Editor</option>
               <option value="viewer">Viewer</option>
             </select>
-            <select [value]="form().companyId ?? ''" (change)="updateField('companyId', $any($event.target).value)">
-              <option value="">Sin empresa</option>
-              <option *ngFor="let empresa of empresas()" [value]="empresa._id">
-                {{ empresa.name }}
-              </option>
-            </select>
             <div class="password-input-container">
               <input
                 [type]="showPassword() ? 'text' : 'password'"
-                [placeholder]="editingId() ? 'Nueva clave (dejar en blanco para no cambiar)' : 'Clave'"
+                [placeholder]="editingId() ? 'Nueva clave' : 'Clave'"
                 [value]="form().password"
                 (input)="updateField('password', $any($event.target).value)"
                 aria-label="Clave del usuario"
@@ -314,14 +297,38 @@
               </button>
             </div>
           </div>
+          <!-- Company Assignment -->
+          <div class="form-field-group" *ngIf="form().role !== 'admin'">
+            <label>Asignar Empresas</label>
+            <div class="custom-dropdown">
+              <button type="button" class="dropdown-toggle" (click)="isCompanyDropdownOpen.set(!isCompanyDropdownOpen())">
+                <span>{{ selectedCompaniesText() }}</span>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="dropdown-arrow">
+                  <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+                </svg>
+              </button>
+              <div class="dropdown-menu" *ngIf="isCompanyDropdownOpen()">
+                <div class="checkbox-item" *ngFor="let empresa of empresas(); trackBy: trackEmpresaById">
+                  <input
+                    type="checkbox"
+                    [id]="'company-' + empresa._id"
+                    [checked]="form().companyIds.includes(empresa._id)"
+                    (change)="updateCompanySelection(empresa._id, $any($event.target).checked)"
+                  >
+                  <label [for]="'company-' + empresa._id">{{ empresa.name }}</label>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="form-actions">
             <button type="submit">{{ editingId() ? 'Guardar cambios' : 'Crear usuario' }}</button>
-            <button type="button" class="secondary" (click)="cancelEdit()">Cancelar</button>
+            <button type="button" class="secondary" (click)="cancelEdit()" *ngIf="!previousAdminView()">Cancelar</button>
+            <button type="button" class="secondary" (click)="backToPreviousAdminView()" *ngIf="previousAdminView()">Volver</button>
           </div>
         </form>
       </ng-container>
 
-      <section class="users-section">
+      <section class="users-section" *ngIf="currentUser()?.role === 'admin' || currentUser() === null">
         <div class="users-toolbar">
           <h2>Usuarios</h2>
           <input
@@ -343,16 +350,25 @@
         <div class="user-list" *ngIf="!loading() && filteredUsers().length > 0">
           <article class="user-card" *ngFor="let user of filteredUsers(); trackBy: trackById">
             <div class="user-info">
-              <button class="user-avatar-button" (click)="login(user)" [title]="'Ver tareas de ' + user.name">
-                {{ user.name.charAt(0) }}
+              <button
+                class="user-avatar-button"
+                (click)="login(user)"
+                [title]="'Ver tareas de ' + user.name"
+                [style.background-color]="avatarColors().get(user._id)?.background"
+                [style.color]="avatarColors().get(user._id)?.text">
+                {{ getUserInitials(user) }}
               </button>
               <div>
                 <h3>{{ user.name }}</h3>
                 <p>{{ user.email }}</p>
-                <p *ngIf="user.company" class="user-company">Empresa: {{ user.company.name }}</p>
+                <div *ngIf="user.companies && user.companies.length > 0" class="user-company-list">
+                  <span *ngFor="let company of user.companies" class="company-badge">
+                    {{ company.name }}
+                  </span>
+                </div>
               </div>
             </div>
-            <div class="user-meta">
+            <div class="user-meta" *ngIf="currentUser()?.role === 'admin'">
               <span class="role-badge" [ngClass]="'role-' + user.role">{{ user.role }}</span>
               <div class="card-actions">
                 <button type="button" class="secondary" (click)="editUser(user)">Editar</button>
@@ -403,7 +419,7 @@
             <div class="password-input-container">
               <input
                 [type]="showPassword() ? 'text' : 'password'"
-                [placeholder]="editingId() ? 'Nueva clave (dejar en blanco para no cambiar)' : 'Clave'"
+                [placeholder]="editingId() ? 'Nueva clave' : 'Clave'"
                 [value]="form().password"
                 (input)="updateField('password', $any($event.target).value)"
                 aria-label="Clave del usuario"
@@ -416,7 +432,8 @@
           </div>
           <div class="form-actions">
             <button type="submit">{{ editingId() ? 'Guardar cambios' : 'Crear administrador' }}</button>
-            <button type="button" class="secondary" (click)="cancelEdit()">Cancelar</button>
+            <button type="button" class="secondary" (click)="cancelEdit()" *ngIf="!previousAdminView()">Cancelar</button>
+            <button type="button" class="secondary" (click)="backToPreviousAdminView()" *ngIf="previousAdminView()">Volver</button>
           </div>
         </form>
       </ng-container>
@@ -434,8 +451,13 @@
         <div class="user-list" *ngIf="!loading() && filteredAdminUsers().length > 0">
           <article class="user-card" *ngFor="let user of filteredAdminUsers(); trackBy: trackById">
             <div class="user-info">
-              <button class="user-avatar-button" (click)="login(user)" [title]="'Ver tareas de ' + user.name">
-                {{ user.name.charAt(0) }}
+              <button
+                class="user-avatar-button"
+                (click)="login(user)"
+                [title]="'Ver tareas de ' + user.name"
+                [style.background-color]="avatarColors().get(user._id)?.background"
+                [style.color]="avatarColors().get(user._id)?.text">
+                {{ getUserInitials(user) }}
               </button>
               <div><h3>{{ user.name }}</h3><p>{{ user.email }}</p></div>
             </div>
@@ -489,12 +511,16 @@
           <h2>Empresas</h2>
           <input type="search" placeholder="Buscar empresa..." [value]="empresaQuery()" (input)="updateEmpresaQuery($any($event.target).value)" aria-label="Buscar empresas" />
         </div>
-        <div class="status-bar" *ngIf="loading()">Cargando empresas...</div>
+        <div class="status-bar" *ngIf="loading()">Cargando tareas...</div>
         <div class="status-bar error" *ngIf="error()">{{ error() }}</div>
         <div class="empty-state" *ngIf="!loading() && filteredEmpresas().length === 0"><p>No hay empresas para mostrar.</p></div>
         <div class="user-list" *ngIf="!loading() && filteredEmpresas().length > 0">
           <article class="user-card" *ngFor="let empresa of filteredEmpresas(); trackBy: trackEmpresaById">
-            <div><h3>{{ empresa.name }}</h3><p>Rubro: {{ empresa.rubro }}</p></div>
+            <div>
+              <h3>{{ empresa.name }}</h3>
+              <p>Rubro: {{ empresa.rubro }}</p>
+              <p *ngIf="empresa.assignedUser" class="empresa-assigned-user">Asignado a: {{ empresa.assignedUser }}</p>
+            </div>
             <div class="card-actions"><button type="button" class="secondary" (click)="editEmpresa(empresa)">Editar</button><button type="button" class="danger" (click)="deleteEmpresa(empresa)">Eliminar</button></div>
           </article>
         </div>
@@ -513,6 +539,26 @@
           [ngClass]="!!user.canDelete ? 'danger' : 'success'"
         >
           {{ !!user.canDelete ? 'Quitar Permiso' : 'Dar Permiso' }}
+        </button>
+      </div>
+      <div class="permission-toggle">
+        <label for="can-edit-profile">Permiso para Editar Perfil</label>
+        <button
+          type="button"
+          (click)="toggleProfileEditPermission(user)"
+          [ngClass]="!!user.canEditProfile ? 'danger' : 'success'"
+        >
+          {{ !!user.canEditProfile ? 'Quitar Permiso' : 'Dar Permiso' }}
+        </button>
+      </div>
+      <div class="permission-toggle">
+        <label for="can-edit-task">Permiso para Editar Tareas</label>
+        <button
+          type="button"
+          (click)="toggleTaskEditPermission(user)"
+          [ngClass]="!!user.canEditTask ? 'danger' : 'success'"
+        >
+          {{ !!user.canEditTask ? 'Quitar Permiso' : 'Dar Permiso' }}
         </button>
       </div>
       <div class="modal-actions">

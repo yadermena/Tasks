@@ -28,6 +28,10 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  canEditProfile: {
+    type: Boolean,
+    default: false
+  },
   companies: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Empresa'

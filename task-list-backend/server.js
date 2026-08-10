@@ -65,12 +65,17 @@ app.post('/api/tasks', async (req, res) => {
       return res.status(401).json({ message: 'No se proporcionó el ID de usuario' });
     }
 
-    const { name } = req.body;
+    const { name, status } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ message: 'El nombre de la tarea es obligatorio' });
     }
+    if (status && !['completada', 'ejecutando', 'acumulada'].includes(status)) {
+      return res.status(400).json({ message: 'Estado no válido' });
+    }
 
-    const task = new Task({ name: name.trim(), userId: userId });
+    const taskData = { name: name.trim(), userId: userId, status: status || 'ejecutando' };
+
+    const task = new Task(taskData);
     const savedTask = await task.save();
     const populatedTask = await Task.findById(savedTask._id).populate('userId', 'name');
     res.status(201).json(populatedTask);
@@ -85,7 +90,13 @@ app.post('/api/tasks', async (req, res) => {
 app.put('/api/tasks/:id/status', async (req, res) => {
   try {
     const userRole = req.headers['x-user-role'];
+    const userCanEdit = req.headers['x-user-can-edit-task'] === 'true';
     const { status } = req.body;
+
+    if (userRole !== 'admin' && !userCanEdit) {
+      return res.status(403).json({ message: 'No tiene permiso para editar el estado de la tarea.' });
+    }
+
     if (!['completada', 'ejecutando', 'acumulada'].includes(status)) {
       return res.status(400).json({ message: 'Estado no válido' });
     }
@@ -97,6 +108,46 @@ app.put('/api/tasks/:id/status', async (req, res) => {
       completed: isCompleted,
       completedAt: isCompleted ? new Date() : null,
     };
+
+    const updatedTask = await Task.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    ).populate('userId', 'name');
+
+    if (!updatedTask) {
+      return res.status(404).json({ message: 'Tarea no encontrada' });
+    }
+
+    res.json(updatedTask);
+  } catch (error) {
+    console.error('Error al actualizar la tarea:', error);
+    const errorMessage = process.env.NODE_ENV === 'production' ? {} : { error: error.message };
+    res.status(500).json({ message: 'Error al actualizar la tarea', ...errorMessage });
+  }
+});
+
+// 3.5. Actualizar tarea (nombre o estado)
+app.put('/api/tasks/:id', async (req, res) => {
+  try {
+    const userRole = req.headers['x-user-role'];
+    const userCanEdit = req.headers['x-user-can-edit-task'] === 'true';
+    const userId = req.headers['x-user-id'];
+    const { name, status } = req.body;
+
+    // Only admins or users with canEditTask permission can edit tasks
+    if (userRole !== 'admin' && !userCanEdit) {
+      return res.status(403).json({ message: 'No tiene permiso para editar tareas.' });
+    }
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: 'El nombre de la tarea es obligatorio' });
+    }
+    if (!status || !['completada', 'ejecutando', 'acumulada'].includes(status)) {
+      return res.status(400).json({ message: 'Estado no válido' });
+    }
+
+    const updateData = { name: name.trim(), status: status };
 
     const updatedTask = await Task.findByIdAndUpdate(
       req.params.id,
@@ -130,9 +181,9 @@ app.delete('/api/tasks/:id', async (req, res) => {
       return res.status(403).json({ message: 'La tarea ya fue eliminada' });
     }
 
-    // Admin can delete any task. Users with canDelete can delete any of their tasks. Others can only delete completed tasks.
-    if (userRole !== 'admin' && !userCanDelete && existingTask.completed !== true) {
-      return res.status(403).json({ message: 'Solo se puede eliminar una tarea completada o tener el permiso para eliminar' });
+    // Only admins or users with the specific permission can delete tasks.
+    if (userRole !== 'admin' && !userCanDelete) {
+      return res.status(403).json({ message: 'No tiene permiso para eliminar esta tarea.' });
     }
 
     const updatedTask = await Task.findByIdAndUpdate(
@@ -253,26 +304,41 @@ app.post('/api/users', async (req, res) => {
 // 7. Actualizar usuario
 app.put('/api/users/:id', async (req, res) => {
   try {
-    const updateData = { ...req.body };
+    const { name, email, role, password, companyIds, canDelete, canEditProfile, canEditTask } = req.body;
+    const updateData = {};
+
+    // Explicitly build the update object to control which fields can be updated
+    if (name !== undefined) updateData.name = name.trim();
+    if (email !== undefined) updateData.email = email.trim();
+    if (role !== undefined) updateData.role = role;
+    if (canDelete !== undefined) updateData.canDelete = canDelete;
+    if (canEditProfile !== undefined) updateData.canEditProfile = canEditProfile;
+    if (canEditTask !== undefined) updateData.canEditTask = canEditTask;
+
     // If a new password is provided, hash it.
-    if (updateData.password && updateData.password.trim() !== '') {
+    if (password && password.trim() !== '') {
       updateData.salt = generateSalt();
-      updateData.password = hashPassword(updateData.password, updateData.salt);
-    } else {
-      // Do not overwrite password with an empty string or update it if not provided
-      delete updateData.password;
+      updateData.password = hashPassword(password, updateData.salt);
     }
-    if (updateData.hasOwnProperty('companyIds')) {
-      const companyIds = updateData.companyIds || [];
-      if (companyIds.length > 0) {
-        const existingAssignment = await User.findOne({ companies: { $in: companyIds }, _id: { $ne: req.params.id } });
-        if (existingAssignment) {
-          const assignedCompany = await Empresa.findById(companyIds.find(id => existingAssignment.companies.includes(id)));
-          return res.status(409).json({ message: `La empresa '${assignedCompany.name}' ya está asignada a otro usuario.` });
-        }
-      }
+    if (req.body.hasOwnProperty('companyIds')) {
+      const companyIds = req.body.companyIds || [];
+      // Find other users who are assigned to any of the companies we are trying to assign.
+      const conflictingUsers = await User.find({
+        companies: { $in: companyIds },
+        _id: { $ne: req.params.id } 
+      });
+
+      // For each of those users, remove the companies that are being reassigned.
+      const updatePromises = conflictingUsers.map(user => {
+        const companiesToPull = user.companies.filter(companyId => companyIds.includes(String(companyId)));
+        return User.updateOne(
+          { _id: user._id },
+          { $pull: { companies: { $in: companiesToPull } } }
+        );
+      });
+      await Promise.all(updatePromises);
+
       updateData.companies = companyIds;
-      delete updateData.companyIds;
     }
 
     const updatedUser = await User.findByIdAndUpdate(req.params.id, updateData, {
@@ -353,8 +419,29 @@ app.post('/api/auth/login', async (req, res) => {
 // Obtener empresas
 app.get('/api/empresas', async (req, res) => {
   try {
-    const empresas = await Empresa.find().sort({ createdAt: -1 });
-    res.json(empresas);
+    // 1. Fetch all companies and convert to plain objects
+    const empresas = await Empresa.find().sort({ createdAt: -1 }).lean();
+
+    // 2. Fetch all users that have at least one company assigned
+    const usersWithCompanies = await User.find({ 'companies.0': { $exists: true } })
+      .select('name companies')
+      .lean();
+
+    // 3. Create a map of companyId -> user.name
+    const companyToUserMap = new Map();
+    for (const user of usersWithCompanies) {
+      for (const companyId of user.companies) {
+        companyToUserMap.set(companyId.toString(), user.name);
+      }
+    }
+
+    // 4. Augment companies with user information
+    const augmentedEmpresas = empresas.map(empresa => ({
+      ...empresa,
+      assignedUser: companyToUserMap.get(empresa._id.toString()) || null,
+    }));
+
+    res.json(augmentedEmpresas);
   } catch (error) {
     console.error('Error al obtener las empresas:', error);
     const errorMessage = process.env.NODE_ENV === 'production' ? {} : { error: error.message };

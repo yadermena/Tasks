@@ -1,4 +1,4 @@
-import { Component, computed, signal, Inject, PLATFORM_ID } from '@angular/core';
+import { Component, computed, signal, Inject, PLATFORM_ID, OnDestroy } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 
 const API_BASE = 'http://127.0.0.1:5000';
@@ -11,11 +11,13 @@ interface User {
   email: string;
   role: UserRole;
   password?: string;
-  company?: {
+  companies?: {
     _id: string;
     name: string;
-  } | null;
+  }[];
   canDelete?: boolean;
+  canEditProfile?: boolean;
+  canEditTask?: boolean;
   createdAt: string;
 }
 
@@ -23,6 +25,7 @@ interface Empresa {
   _id: string;
   name: string;
   rubro: string;
+  assignedUser?: string | null;
   createdAt: string;
 }
 
@@ -46,35 +49,41 @@ interface Task {
   templateUrl: './app.html',
   styleUrls: ['./app.css']
 })
-export class App {
+export class App implements OnDestroy {
   protected readonly title = signal('Dashboard de usuarios');
   protected readonly users = signal<User[]>([]);
   protected readonly query = signal('');
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly isSidebarOpen = signal(false);
-  protected readonly form = signal({ name: '', email: '', role: 'viewer' as UserRole, password: '', companyId: null as string | null });
+  protected readonly form = signal({ name: '', email: '', role: 'viewer' as UserRole, password: '', companyIds: [] as string[] });
   protected readonly isUserFormVisible = signal(false);
   protected readonly showPassword = signal(false);
   protected readonly editingId = signal<string | null>(null);
+  protected readonly editingUser = signal<User | null>(null);
   protected readonly permissionsModalUser = signal<User | null>(null);
   protected readonly adminView = signal<'tasks' | 'users' | 'empresas' | 'configuraciones'>('users');
   // Signals for admin login modal
   protected readonly loginModalUser = signal<User | null>(null);
   protected readonly passwordInput = signal('');
   protected readonly loginError = signal<string | null>(null);
+  protected readonly previousAdminView = signal<'tasks' | 'users' | 'empresas' | 'configuraciones' | null>(null);
+  protected readonly isProfileMenuOpen = signal(false);
   protected readonly selectedEmpresa = signal<Empresa | null>(null);
 
   // Signals for companies
   protected readonly empresas = signal<Empresa[]>([]);
   protected readonly empresaForm = signal({ name: '', rubro: '' });
   protected readonly editingEmpresaId = signal<string | null>(null);
+  protected readonly isCompanyDropdownOpen = signal(false);
   protected readonly empresaQuery = signal('');
 
   protected readonly realUser = signal<User | null>(null);
   // Signals for the "logged-in" user and their tasks
   protected readonly currentUser = signal<User | null>(null);
-  protected readonly tasks = signal<Task[]>([]);
+  protected readonly tasks = signal<Task[]>([]); // All tasks for the current user/admin
+  protected readonly editingTask = signal<Task | null>(null); // Task being edited
+  protected readonly isTaskFormVisible = signal(false); // Visibility of the task form
   protected readonly taskLoading = signal(false);
   protected readonly newTaskName = signal('');
   protected readonly taskQuery = signal('');
@@ -84,6 +93,7 @@ export class App {
   protected readonly runningTasksCount = computed(() => this.tasks().filter(t => t.status === 'ejecutando' && !t.isDeleted).length);
   protected readonly accumulatedTasksCount = computed(() => this.tasks().filter(t => t.status === 'acumulada' && !t.isDeleted).length);
   protected readonly currentFilterStatus = signal<'all' | Task['status'] | 'eliminadas'>('all');
+  protected readonly taskForm = signal({ name: '', status: 'ejecutando' as Task['status'] }); // Form for adding/editing tasks
   protected readonly deletedTasksCount = computed(() => this.tasks().filter(t => t.isDeleted).length);
 
   protected getUserInitials(user: User): string {
@@ -129,6 +139,24 @@ export class App {
     return userColors;
   });
 
+  protected readonly selectedCompaniesText = computed(() => {
+    const selectedIds = this.form().companyIds;
+    if (selectedIds.length === 0) {
+      return 'Seleccionar empresas';
+    }
+    const allEmpresas = this.empresas();
+    if (allEmpresas.length === 0) return 'Cargando...';
+
+    const selectedNames = allEmpresas
+      .filter(e => selectedIds.includes(e._id))
+      .map(e => e.name);
+
+    if (selectedNames.length > 2) {
+      return `${selectedNames.slice(0, 2).join(', ')} y ${selectedNames.length - 2} más`;
+    }
+    return selectedNames.join(', ');
+  });
+
   protected readonly currentUserInitials = computed(() => {
     const user = this.currentUser();
     if (!user) return '';
@@ -140,7 +168,7 @@ export class App {
     const nonAdminUsers = this.users().filter(user => user.role !== 'admin');
     if (!term) {
       return nonAdminUsers;
-    }
+    } 
 
     return nonAdminUsers.filter((user) => {
       return `${user.name} ${user.email} ${user.role}`.toLowerCase().includes(term);
@@ -218,9 +246,25 @@ export class App {
         void this.loadUsers();
         void this.loadEmpresas();
       }
+      document.addEventListener('click', this.onDocumentClick.bind(this));
     } else {
       void this.loadUsers();
       void this.loadEmpresas();
+    }
+  }
+
+  ngOnDestroy() {
+    if (isPlatformBrowser(this.platformId)) {
+      document.removeEventListener('click', this.onDocumentClick.bind(this));
+    }
+  }
+
+  private onDocumentClick(event: MouseEvent) {
+    if (this.isCompanyDropdownOpen()) {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.custom-dropdown')) {
+        this.isCompanyDropdownOpen.set(false);
+      }
     }
   }
 
@@ -228,8 +272,17 @@ export class App {
     this.query.set(value);
   }
 
-  protected updateField(field: 'name' | 'email' | 'role' | 'password' | 'companyId', value: string) {
-    this.form.update((current) => ({ ...current, [field]: value }));
+  protected updateField(field: 'name' | 'email' | 'role' | 'password', value: string) {
+    this.form.update((current) => ({...current, [field]: value}));
+  }
+
+  protected updateCompanySelection(companyId: string, isSelected: boolean) {
+    this.form.update(current => {
+      const companyIds = isSelected
+        ? [...current.companyIds, companyId]
+        : current.companyIds.filter(id => id !== companyId);
+      return { ...current, companyIds };
+    });
   }
 
   protected async onSubmit(event: Event) {
@@ -344,7 +397,7 @@ export class App {
   }
 
   protected async saveUser() {
-    const { name, email, role, password, companyId } = this.form();
+    const { name, email, role, password, companyIds } = this.form();
     if (!name.trim() || !email.trim()) {
       this.error.set('Completa nombre y correo para guardar');
       return;
@@ -361,7 +414,7 @@ export class App {
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), role, password, companyId })
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), role, password, companyIds })
       });
 
       if (!response.ok) {
@@ -379,8 +432,7 @@ export class App {
 
       const savedUser = await response.json();
       if (this.editingId()) {
-        this.users.update((current) =>
-          current.map((user) => (user._id === savedUser._id ? savedUser : user))
+        this.users.update((current) => current.map((user) => (user._id === savedUser._id ? savedUser : user))
         );
       } else {
         this.users.update((current) => [savedUser, ...current]);
@@ -394,9 +446,33 @@ export class App {
   }
 
   protected editUser(user: User) {
+    // Check if this action is coming from the profile menu (editing the current user)
+    const isEditingCurrentUser = this.currentUser()?._id === user._id;
+
+    if (isEditingCurrentUser) {
+      this.isProfileMenuOpen.set(false);
+      // If the "real" user is an admin, they are the one who can see the admin panel.
+      // We need to switch to the correct view to show the user edit form.
+      if (this.realUser()?.role === 'admin') {
+        const currentView = this.adminView();
+        // Admin users are edited in 'configuraciones', others in 'users'
+        const targetView = user.role === 'admin' ? 'configuraciones' : 'users';
+
+        if (currentView !== targetView) {
+          this.previousAdminView.set(currentView);
+        } else {
+          this.previousAdminView.set(null);
+        }
+        this.setAdminView(targetView);
+      }
+    }
+
+    // Common logic for all user edits
     this.editingId.set(user._id);
-    this.form.set({ name: user.name, email: user.email, role: user.role, password: '', companyId: user.company?._id ?? null });
+    this.editingUser.set(user);
+    this.form.set({ name: user.name, email: user.email, role: user.role, password: '', companyIds: user.companies?.map(c => c._id) ?? [] });
     this.isUserFormVisible.set(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   protected cancelEdit() {
@@ -404,10 +480,20 @@ export class App {
     this.isUserFormVisible.set(false);
   }
 
+  protected backToPreviousAdminView() {
+    const previousView = this.previousAdminView();
+    this.cancelEdit();
+    if (previousView) {
+      this.setAdminView(previousView);
+    }
+  }
+
   protected resetForm() {
     this.editingId.set(null);
-    this.form.set({ name: '', email: '', role: 'viewer', password: '', companyId: null });
+    this.editingUser.set(null);
+    this.form.set({ name: '', email: '', role: 'viewer', password: '', companyIds: [] });
     this.error.set(null);
+    this.previousAdminView.set(null);
   }
 
   protected async deleteUser(user: User) {
@@ -563,12 +649,6 @@ export class App {
     this.taskQuery.set(value);
   }
 
-  // --- Task Management Methods ---
-
-  protected updateNewTaskName(name: string) {
-    this.newTaskName.set(name);
-  }
-
   protected async loadTasks() {
     const user = this.currentUser();
     if (!user) return;
@@ -600,28 +680,82 @@ export class App {
     }
   }
 
-  protected async addTask(event: Event) {
+  // --- Task Management Methods ---
+
+  protected updateTaskFormField(field: 'name' | 'status', value: string) {
+    this.taskForm.update(current => ({ ...current, [field]: value }));
+  }
+
+  protected async saveTask(event: Event) {
     event.preventDefault();
     const user = this.currentUser();
-    const name = this.newTaskName().trim();
-    if (!user || !name) return;
+    if (!user) return;
+
+    const { name, status } = this.taskForm();
+    if (!name.trim()) {
+      this.error.set('El nombre de la tarea es obligatorio.');
+      return;
+    }
+
+    const isEditing = this.editingTask() !== null;
+    const method = isEditing ? 'PUT' : 'POST';
+    const url = isEditing ? `${API_BASE}/api/tasks/${this.editingTask()?._id}` : `${API_BASE}/api/tasks`;
 
     try {
-      const response = await fetch(`${API_BASE}/api/tasks`, {
-        method: 'POST',
+      const response = await fetch(url, {
+        method: method,
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': user._id
+          'x-user-id': user._id,
+          'x-user-role': user.role,
         },
-        body: JSON.stringify({ name })
+        body: JSON.stringify({ name: name.trim(), status })
       });
-      if (!response.ok) throw new Error('No se pudo crear la tarea');
-      const createdTask = await response.json();
-      this.tasks.update(current => [createdTask, ...current]);
-      this.newTaskName.set('');
+
+      if (!response.ok) {
+        let errorMessage = isEditing ? 'No se pudo actualizar la tarea' : 'No se pudo crear la tarea';
+        try {
+          const errorBody = await response.json();
+          errorMessage = errorBody.message || errorMessage;
+        } catch (jsonError) { /* ignore if not JSON */ }
+        throw new Error(errorMessage);
+      }
+
+      const updatedOrCreatedTask = await response.json();
+
+      if (isEditing) {
+        this.tasks.update(current =>
+          current.map(t => (t._id === updatedOrCreatedTask._id ? updatedOrCreatedTask : t))
+        );
+      } else {
+        this.tasks.update(current => [updatedOrCreatedTask, ...current]);
+      }
+      this.cancelEditTask(); // Reset form and hide it
     } catch (err) {
       this.error.set(String(err));
     }
+  }
+
+  protected openAddTaskForm() {
+    this.editingTask.set(null);
+    this.taskForm.set({ name: '', status: 'ejecutando' });
+    this.isTaskFormVisible.set(true);
+    this.error.set(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  protected editTask(task: Task) {
+    this.editingTask.set(task);
+    this.taskForm.set({ name: task.name, status: task.status });
+    this.isTaskFormVisible.set(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  protected cancelEditTask() {
+    this.editingTask.set(null);
+    this.taskForm.set({ name: '', status: 'ejecutando' });
+    this.isTaskFormVisible.set(false);
+    this.error.set(null);
   }
 
   protected async updateTaskStatus(task: Task, status: Task['status']) {
@@ -787,6 +921,68 @@ export class App {
     }
   }
 
+  protected async toggleProfileEditPermission(user: User) {
+    const canEditProfile = !user.canEditProfile;
+    try {
+      const response = await fetch(`${API_BASE}/api/users/${user._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ canEditProfile })
+      });
+
+      if (!response.ok) {
+        throw new Error('No se pudo actualizar el permiso');
+      }
+
+      const updatedUser = await response.json();
+      // Update user in the main list
+      this.users.update(current =>
+        current.map(u => u._id === updatedUser._id ? updatedUser : u)
+      );
+      // Also update the user in the modal to reflect the change
+      this.permissionsModalUser.set(updatedUser);
+
+      // If the currently logged-in user is the one being edited, update their state too.
+      if (this.currentUser()?._id === updatedUser._id) {
+        this.currentUser.set(updatedUser);
+      }
+    } catch (err) {
+      this.error.set(String(err));
+      this.closePermissionsModal();
+    }
+  }
+
+  protected async toggleTaskEditPermission(user: User) {
+    const canEditTask = !user.canEditTask;
+    try {
+      const response = await fetch(`${API_BASE}/api/users/${user._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ canEditTask })
+      });
+
+      if (!response.ok) {
+        throw new Error('No se pudo actualizar el permiso');
+      }
+
+      const updatedUser = await response.json();
+      // Update user in the main list
+      this.users.update(current =>
+        current.map(u => u._id === updatedUser._id ? updatedUser : u)
+      );
+      // Also update the user in the modal to reflect the change
+      this.permissionsModalUser.set(updatedUser);
+
+      // If the currently logged-in user is the one being edited, update their state too.
+      if (this.currentUser()?._id === updatedUser._id) {
+        this.currentUser.set(updatedUser);
+      }
+    } catch (err) {
+      this.error.set(String(err));
+      this.closePermissionsModal();
+    }
+  }
+
   // --- Admin Login Modal Methods ---
 
   protected closeLoginModal() {
@@ -828,18 +1024,12 @@ export class App {
       // The `user` from `loginModalUser()` has the company info populated.
       // A non-admin user must have a company to log in. This can either be
       // pre-assigned to their profile or selected manually from the sidebar.
-      if (user.role !== 'admin' && !user.company && this.selectedEmpresa() === null) {
-        this.loginError.set('Debe seleccionar una empresa para ingresar.');
+      if (user.role !== 'admin' && (!user.companies || user.companies.length === 0) && this.selectedEmpresa() === null) {
+        this.loginError.set('Este usuario no tiene una empresa asignada. Por favor, seleccione una empresa para ingresar.');
         return; // Don't proceed
       }
 
-      // The user object from the modal has the populated company.
-      // The loggedInUser from the auth endpoint is the source of truth for user data,
-      // but it's missing the populated company. Let's add it back from the `user`
-      // object we got from the list.
-      const finalUser = { ...loggedInUser, company: user.company };
-
-      this._performLogin(finalUser);
+      this._performLogin(loggedInUser);
       this.closeLoginModal();
     } catch (err) {
       // Display the error in the modal, removing the "Error: " prefix.
