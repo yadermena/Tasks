@@ -811,3 +811,13 @@ button:hover {
   cursor: pointer;
   width: 100%;
 }
+.inline-edit-form {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+}
+
+.inline-edit-form input {
+  flex-grow: 1;
+}

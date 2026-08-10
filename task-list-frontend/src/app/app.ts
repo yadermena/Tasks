@@ -75,6 +75,7 @@ export class App implements OnDestroy {
   protected readonly empresas = signal<Empresa[]>([]);
   protected readonly empresaForm = signal({ name: '', rubro: '' });
   protected readonly editingEmpresaId = signal<string | null>(null);
+  protected readonly isEmpresaFormVisible = signal(false);
   protected readonly isCompanyDropdownOpen = signal(false);
   protected readonly empresaQuery = signal('');
 
@@ -89,6 +90,8 @@ export class App implements OnDestroy {
   protected readonly taskQuery = signal('');
 
   // Signals for task summary
+  protected readonly inlineEditingTaskId = signal<string | null>(null);
+  protected readonly inlineEditingTaskName = signal<string>('');
   protected readonly completedTasksCount = computed(() => this.tasks().filter(t => t.status === 'completada').length);
   protected readonly runningTasksCount = computed(() => this.tasks().filter(t => t.status === 'ejecutando' && !t.isDeleted).length);
   protected readonly accumulatedTasksCount = computed(() => this.tasks().filter(t => t.status === 'acumulada' && !t.isDeleted).length);
@@ -606,18 +609,28 @@ export class App implements OnDestroy {
       }
 
       this.resetEmpresaForm();
+      this.isEmpresaFormVisible.set(false);
     } catch (err) {
       this.error.set(String(err));
     }
   }
 
+  protected openAddEmpresaForm() {
+    this.resetEmpresaForm();
+    this.isEmpresaFormVisible.set(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   protected editEmpresa(empresa: Empresa) {
     this.editingEmpresaId.set(empresa._id);
     this.empresaForm.set({ name: empresa.name, rubro: empresa.rubro });
+    this.isEmpresaFormVisible.set(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   protected cancelEditEmpresa() {
     this.resetEmpresaForm();
+    this.isEmpresaFormVisible.set(false);
   }
 
   protected resetEmpresaForm() {
@@ -697,13 +710,9 @@ export class App implements OnDestroy {
       return;
     }
 
-    const isEditing = this.editingTask() !== null;
-    const method = isEditing ? 'PUT' : 'POST';
-    const url = isEditing ? `${API_BASE}/api/tasks/${this.editingTask()?._id}` : `${API_BASE}/api/tasks`;
-
     try {
-      const response = await fetch(url, {
-        method: method,
+      const response = await fetch(`${API_BASE}/api/tasks`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-user-id': user._id,
@@ -713,7 +722,7 @@ export class App implements OnDestroy {
       });
 
       if (!response.ok) {
-        let errorMessage = isEditing ? 'No se pudo actualizar la tarea' : 'No se pudo crear la tarea';
+        let errorMessage = 'No se pudo crear la tarea';
         try {
           const errorBody = await response.json();
           errorMessage = errorBody.message || errorMessage;
@@ -721,16 +730,47 @@ export class App implements OnDestroy {
         throw new Error(errorMessage);
       }
 
-      const updatedOrCreatedTask = await response.json();
-
-      if (isEditing) {
-        this.tasks.update(current =>
-          current.map(t => (t._id === updatedOrCreatedTask._id ? updatedOrCreatedTask : t))
-        );
-      } else {
-        this.tasks.update(current => [updatedOrCreatedTask, ...current]);
-      }
+      const createdTask = await response.json();
+      this.tasks.update(current => [createdTask, ...current]);
       this.cancelEditTask(); // Reset form and hide it
+    } catch (err) {
+      this.error.set(String(err));
+    }
+  }
+
+  protected startInlineEdit(task: Task) {
+    this.cancelEditTask(); // Ensure top form is closed
+    this.inlineEditingTaskId.set(task._id);
+    this.inlineEditingTaskName.set(task.name);
+  }
+
+  protected cancelInlineEdit() {
+    this.inlineEditingTaskId.set(null);
+  }
+
+  protected async saveInlineEdit(task: Task) {
+    const newName = this.inlineEditingTaskName().trim();
+    const user = this.currentUser();
+    if (!newName || newName === task.name || !user) {
+      this.cancelInlineEdit();
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/api/tasks/${task._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user._id,
+          'x-user-role': user.role,
+          'x-user-can-edit-task': String(!!user.canEditTask),
+        },
+        body: JSON.stringify({ name: newName, status: task.status }),
+      });
+      if (!response.ok) throw new Error('No se pudo guardar la tarea');
+      const updatedTask = await response.json();
+      this.tasks.update(current => current.map(t => (t._id === updatedTask._id ? updatedTask : t)));
+      this.cancelInlineEdit();
     } catch (err) {
       this.error.set(String(err));
     }
@@ -741,13 +781,6 @@ export class App implements OnDestroy {
     this.taskForm.set({ name: '', status: 'ejecutando' });
     this.isTaskFormVisible.set(true);
     this.error.set(null);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  protected editTask(task: Task) {
-    this.editingTask.set(task);
-    this.taskForm.set({ name: task.name, status: task.status });
-    this.isTaskFormVisible.set(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 

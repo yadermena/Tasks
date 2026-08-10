@@ -122,7 +122,7 @@
 
     <!-- Form to add/edit a task -->
     <form class="user-form" (submit)="saveTask($event)" *ngIf="isTaskFormVisible()">
-      <h2>{{ editingTask() ? 'Editar Tarea' : 'Nueva Tarea' }}</h2>
+      <h2>Nueva Tarea</h2>
       <div class="form-grid">
         <div class="form-field-group">
           <label for="task-name">Nombre de la tarea</label>
@@ -148,7 +148,7 @@
         </div>
       </div>
       <div class="form-actions">
-        <button type="submit">{{ editingTask() ? 'Guardar Tarea' : 'Agregar Tarea' }}</button>
+        <button type="submit">Agregar Tarea</button>
         <button type="button" class="secondary" (click)="cancelEditTask()">Cancelar</button>
       </div>
     </form>
@@ -217,7 +217,19 @@
       <div *ngIf="!taskLoading() && filteredTasks().length > 0" class="user-list">
         <article class="user-card" [class.deleted-task]="task.isDeleted" *ngFor="let task of filteredTasks(); trackBy: trackTaskById">
           <div>
-            <h3>{{ task.name }}</h3>
+            <h3 *ngIf="inlineEditingTaskId() !== task._id">{{ task.name }}</h3>
+            <div *ngIf="inlineEditingTaskId() === task._id" class="inline-edit-form">
+              <input
+                type="text"
+                [value]="inlineEditingTaskName()"
+                (input)="inlineEditingTaskName.set($any($event.target).value)"
+                (keydown.enter)="saveInlineEdit(task)"
+                (keydown.escape)="cancelInlineEdit()"
+                autofocus
+              />
+              <button (click)="saveInlineEdit(task)">Guardar</button>
+              <button (click)="cancelInlineEdit()" class="secondary">Cancelar</button>
+            </div>
             <p>
               Estado: {{ task.status }}
               <span *ngIf="task.isDeleted" class="deleted-indicator">(Eliminada)</span>
@@ -237,7 +249,7 @@
             <button *ngIf="currentUser()?.role === 'admin' && task.isDeleted" type="button" (click)="restoreTask(task)">Restaurar</button>
             <!-- Delete button for active tasks, requires admin role or canDelete permission-->
             <button *ngIf="!task.isDeleted && (user.role === 'admin' || user.canDelete)" type="button" class="danger" (click)="deleteTask(task)">Eliminar</button>
-            <button *ngIf="!task.isDeleted && (user.role === 'admin' || user.canEditTask)" type="button" class="secondary" (click)="editTask(task)">Editar</button>
+            <button *ngIf="!task.isDeleted && (user.role === 'admin' || user.canEditTask) && inlineEditingTaskId() !== task._id" type="button" class="secondary" (click)="startInlineEdit(task)">Editar</button>
           </div>
         </article>
       </div>
@@ -482,29 +494,35 @@
         </div>
       </header>
 
-      <form class="user-form" (submit)="onEmpresaSubmit($event)">
-        <h2>{{ editingEmpresaId() ? 'Editar empresa' : 'Agregar empresa' }}</h2>
-        <div class="form-grid">
-          <input
-            type="text"
-            placeholder="Nombre de la empresa"
-            [value]="empresaForm().name"
-            (input)="updateEmpresaField('name', $any($event.target).value)"
-            aria-label="Nombre de la empresa"
-          />
-          <input
-            type="text"
-            placeholder="Rubro"
-            [value]="empresaForm().rubro"
-            (input)="updateEmpresaField('rubro', $any($event.target).value)"
-            aria-label="Rubro de la empresa"
-          />
-        </div>
-        <div class="form-actions">
-          <button type="submit">{{ editingEmpresaId() ? 'Guardar cambios' : 'Crear empresa' }}</button>
-          <button type="button" class="secondary" (click)="cancelEditEmpresa()" *ngIf="editingEmpresaId()">Cancelar</button>
-        </div>
-      </form>
+      <div class="user-form-placeholder" *ngIf="!isEmpresaFormVisible()">
+        <button (click)="openAddEmpresaForm()">AGREGAR EMPRESA</button>
+      </div>
+
+      <ng-container *ngIf="isEmpresaFormVisible()">
+        <form class="user-form" (submit)="onEmpresaSubmit($event)">
+          <h2>{{ editingEmpresaId() ? 'Editar empresa' : 'Agregar empresa' }}</h2>
+          <div class="form-grid">
+            <input
+              type="text"
+              placeholder="Nombre de la empresa"
+              [value]="empresaForm().name"
+              (input)="updateEmpresaField('name', $any($event.target).value)"
+              aria-label="Nombre de la empresa"
+            />
+            <input
+              type="text"
+              placeholder="Rubro"
+              [value]="empresaForm().rubro"
+              (input)="updateEmpresaField('rubro', $any($event.target).value)"
+              aria-label="Rubro de la empresa"
+            />
+          </div>
+          <div class="form-actions">
+            <button type="submit">{{ editingEmpresaId() ? 'Guardar cambios' : 'Crear empresa' }}</button>
+            <button type="button" class="secondary" (click)="cancelEditEmpresa()">Cancelar</button>
+          </div>
+        </form>
+      </ng-container>
 
       <section class="users-section">
         <div class="users-toolbar">
