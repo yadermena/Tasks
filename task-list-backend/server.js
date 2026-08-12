@@ -293,8 +293,9 @@ app.post('/api/users', async (req, res) => {
     if (companyIds && companyIds.length > 0) {
       const existingAssignment = await User.findOne({ companies: { $in: companyIds } });
       if (existingAssignment) {
-        const assignedCompany = await Empresa.findById(companyIds.find(id => existingAssignment.companies.includes(id)));
-        return res.status(409).json({ message: `La empresa '${assignedCompany.name}' ya está asignada a otro usuario.` });
+        const conflictingId = companyIds.find(id => existingAssignment.companies.some(cId => cId.toString() === id));
+        const assignedCompany = await Empresa.findById(conflictingId);
+        return res.status(409).json({ message: `La empresa '${assignedCompany?.name || 'desconocida'}' ya está asignada a otro usuario.` });
       }
     }
 
