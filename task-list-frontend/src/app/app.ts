@@ -56,7 +56,7 @@ export class App implements OnDestroy {
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly isSidebarOpen = signal(false);
-  protected readonly form = signal({ name: '', email: '', role: 'viewer' as UserRole, password: '', companyIds: [] as string[] });
+  protected readonly form = signal({ name: '', email: '', role: 'viewer' as UserRole, password: '', companyIds: [] as string[]});
   protected readonly isUserFormVisible = signal(false);
   protected readonly showPassword = signal(false);
   protected readonly editingId = signal<string | null>(null);
@@ -441,6 +441,10 @@ export class App implements OnDestroy {
         this.users.update((current) => [savedUser, ...current]);
       }
 
+      // After saving a user, company assignments might have changed.
+      // Reload the companies to get the updated `assignedUser` info.
+      void this.loadEmpresas();
+
       this.resetForm();
       this.isUserFormVisible.set(false);
     } catch (err) {
@@ -494,7 +498,7 @@ export class App implements OnDestroy {
   protected resetForm() {
     this.editingId.set(null);
     this.editingUser.set(null);
-    this.form.set({ name: '', email: '', role: 'viewer', password: '', companyIds: [] });
+    this.form.set({ name: '', email: '', role: 'viewer', password: '', companyIds: []});
     this.error.set(null);
     this.previousAdminView.set(null);
   }
@@ -515,6 +519,10 @@ export class App implements OnDestroy {
       }
 
       this.users.update((current) => current.filter((item) => item._id !== user._id));
+
+      // If the deleted user had companies assigned, they are now unassigned.
+      // Reload the companies list to reflect this change.
+      void this.loadEmpresas();
     } catch (err) {
       this.error.set(String(err));
     }
@@ -575,7 +583,7 @@ export class App implements OnDestroy {
   protected async saveEmpresa() {
     const { name, rubro } = this.empresaForm();
     if (!name.trim() || !rubro.trim()) {
-      this.error.set('Completa nombre y Rubro para guardar');
+      this.error.set('Completa Nombre y Rubro para guardar');
       return;
     }
 

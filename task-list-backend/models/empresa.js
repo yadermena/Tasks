@@ -10,12 +10,8 @@ const empresaSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
   }
-});
+}, { timestamps: true });
 
 const Empresa = mongoose.model('Empresa', empresaSchema);
 

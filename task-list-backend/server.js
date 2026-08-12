@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const Task = require('./models/task');
+const Role = require('./models/role');
 const User = require('./models/user');
 const Empresa = require('./models/empresa');
 const express = require('express');
@@ -27,10 +28,29 @@ function hashPassword(password, salt) {
 mongoose.connect(MONGO_URI)
   .then(() => {
     console.log('¡Conectado a MongoDB con éxito!');
+    seedRoles();
   })
   .catch((error) => {
     console.error('Error al conectar a MongoDB:', error);
   });
+
+async function seedRoles() {
+  try {
+    const roles = [
+      { name: 'admin', permissions: { canDelete: true, canEditProfile: true, canEditTask: true } },
+      { name: 'editor', permissions: { canDelete: false, canEditProfile: true, canEditTask: true } },
+      { name: 'viewer', permissions: { canDelete: false, canEditProfile: false, canEditTask: false } }
+    ];
+
+    for (const roleData of roles) {
+      // Crea el rol si no existe, o lo actualiza si los permisos han cambiado en el código.
+      await Role.updateOne({ name: roleData.name }, { $set: roleData }, { upsert: true });
+    }
+    console.log('Roles inicializados/verificados con éxito.');
+  } catch (error) {
+    console.error('Error al inicializar los roles:', error);
+  }
+}
 
 // --- RUTAS DE LA API ---
 
@@ -265,6 +285,11 @@ app.post('/api/users', async (req, res) => {
       return res.status(400).json({ message: 'La clave es obligatoria' });
     }
 
+    const roleDoc = await Role.findOne({ name: role || 'viewer' });
+    if (!roleDoc) {
+      return res.status(400).json({ message: `El rol '${role}' no es válido.` });
+    }
+
     if (companyIds && companyIds.length > 0) {
       const existingAssignment = await User.findOne({ companies: { $in: companyIds } });
       if (existingAssignment) {
@@ -283,6 +308,7 @@ app.post('/api/users', async (req, res) => {
       password: hashedPassword,
       salt: salt,
       companies: companyIds || [],
+      ...roleDoc.permissions.toObject() // Asigna los permisos por defecto del rol
     });
 
     const createdUser = await user.save();
@@ -307,10 +333,43 @@ app.put('/api/users/:id', async (req, res) => {
     const { name, email, role, password, companyIds, canDelete, canEditProfile, canEditTask } = req.body;
     const updateData = {};
 
+    const userId = req.params.id;
+    const currentUser = await User.findById(userId);
+
+    if (!currentUser) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
     // Explicitly build the update object to control which fields can be updated
     if (name !== undefined) updateData.name = name.trim();
     if (email !== undefined) updateData.email = email.trim();
-    if (role !== undefined) updateData.role = role;
+
+    // Handle role change and associated permissions
+    if (role !== undefined) {
+      // If the role is actually changing
+      if (currentUser.role !== role) {
+        // Validation: Prevent changing an admin's role if it would leave 2 or fewer admins
+        if (currentUser.role === 'admin' && role !== 'admin') {
+          const adminCount = await User.countDocuments({ role: 'admin' });
+          if (adminCount <= 2) { // If there are 2 or fewer admins, prevent demotion
+            return res.status(403).json({ message: 'No se puede cambiar el rol de administrador si quedan 2 o menos administradores.' });
+          }
+        }
+        // Fetch permissions for the new role
+        const roleDoc = await Role.findOne({ name: role });
+        if (!roleDoc) {
+          return res.status(400).json({ message: `El rol '${role}' no es válido.` });
+        }
+        updateData.role = role;
+        // Apply default permissions from the new role
+        Object.assign(updateData, roleDoc.permissions.toObject());
+      } else {
+        // Role is not changing, but we still include it in updateData for consistency
+        updateData.role = role;
+      }
+    }
+
+    // Individual permission overrides (if provided, they take precedence over role defaults)
     if (canDelete !== undefined) updateData.canDelete = canDelete;
     if (canEditProfile !== undefined) updateData.canEditProfile = canEditProfile;
     if (canEditTask !== undefined) updateData.canEditTask = canEditTask;
@@ -339,6 +398,11 @@ app.put('/api/users/:id', async (req, res) => {
       await Promise.all(updatePromises);
 
       updateData.companies = companyIds;
+    }
+
+    // Ensure updateData is not empty before attempting to update
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ message: 'No se proporcionaron datos para actualizar.' });
     }
 
     const updatedUser = await User.findByIdAndUpdate(req.params.id, updateData, {
@@ -458,7 +522,12 @@ app.post('/api/empresas', async (req, res) => {
     }
     const empresa = new Empresa({ name: name.trim(), rubro: rubro.trim() });
     const createdEmpresa = await empresa.save();
-    res.status(201).json(createdEmpresa);
+
+    // Convertir a objeto plano y añadir 'assignedUser' para consistencia con GET /api/empresas
+    const empresaObject = createdEmpresa.toObject();
+    empresaObject.assignedUser = null;
+
+    res.status(201).json(empresaObject);
   } catch (error) {
     console.error('Error al crear la empresa:', error);
     const errorMessage = process.env.NODE_ENV === 'production' ? {} : { error: error.message };
@@ -469,14 +538,27 @@ app.post('/api/empresas', async (req, res) => {
 // Actualizar empresa
 app.put('/api/empresas/:id', async (req, res) => {
   try {
-    const updatedEmpresa = await Empresa.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true
-    });
+    const { name, rubro } = req.body;
+    if (!name || !name.trim() || !rubro || !rubro.trim()) {
+      return res.status(400).json({ message: 'Nombre y Rubro son obligatorios' });
+    }
+    const updateData = { name: name.trim(), rubro: rubro.trim() };
+
+    const updatedEmpresa = await Empresa.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    );
     if (!updatedEmpresa) {
       return res.status(404).json({ message: 'Empresa no encontrada' });
     }
-    res.json(updatedEmpresa);
+
+    // Buscar el usuario asignado para devolver un objeto consistente
+    const assignedUser = await User.findOne({ companies: updatedEmpresa._id }).select('name').lean();
+    const empresaObject = updatedEmpresa.toObject();
+    empresaObject.assignedUser = assignedUser ? assignedUser.name : null;
+
+    res.json(empresaObject);
   } catch (error) {
     console.error('Error al actualizar la empresa:', error);
     const errorMessage = process.env.NODE_ENV === 'production' ? {} : { error: error.message };

@@ -32,6 +32,10 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  canEditTask: {
+    type: Boolean,
+    default: false
+  },
   companies: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Empresa'
