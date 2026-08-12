@@ -121,8 +121,8 @@
     </div>
 
     <!-- Form to add/edit a task -->
-    <form class="user-form" (submit)="saveTask($event)" *ngIf="isTaskFormVisible()">
-      <h2>Nueva Tarea</h2>
+    <form class="user-form" (submit)="onTaskSubmit($event)" *ngIf="isTaskFormVisible()">
+      <h2>{{ editingTask() ? 'Editar Tarea' : 'Nueva Tarea' }}</h2>
       <div class="form-grid">
         <div class="form-field-group">
           <label for="task-name">Nombre de la tarea</label>
@@ -146,9 +146,22 @@
             <option value="acumulada">Acumulada</option>
           </select>
         </div>
+        <!-- User assignment dropdown for admins -->
+        <div class="form-field-group" *ngIf="currentUser()?.role === 'admin'">
+          <label for="task-user">Asignar a Usuario</label>
+          <select
+            id="task-user"
+            [value]="taskForm().userId"
+            (change)="updateTaskFormField('userId', $any($event.target).value)"
+          >
+            <option *ngFor="let user of users()" [value]="user._id">{{ user.name }}</option>
+          </select>
+        </div>
       </div>
       <div class="form-actions">
-        <button type="submit">Agregar Tarea</button>
+        <button type="submit">
+          {{ editingTask() ? 'Guardar Cambios' : 'Agregar Tarea' }}
+        </button>
         <button type="button" class="secondary" (click)="cancelEditTask()">Cancelar</button>
       </div>
     </form>
@@ -216,25 +229,12 @@
 
       <div *ngIf="!taskLoading() && filteredTasks().length > 0" class="user-list">
         <article class="user-card" [class.deleted-task]="task.isDeleted" *ngFor="let task of filteredTasks(); trackBy: trackTaskById">
-          <div>
-            <h3 *ngIf="inlineEditingTaskId() !== task._id">{{ task.name }}</h3>
-            <div *ngIf="inlineEditingTaskId() === task._id" class="inline-edit-form">
-              <input
-                type="text"
-                [value]="inlineEditingTaskName()"
-                (input)="inlineEditingTaskName.set($any($event.target).value)"
-                (keydown.enter)="saveInlineEdit(task)"
-                (keydown.escape)="cancelInlineEdit()"
-                autofocus
-              />
-              <button (click)="saveInlineEdit(task)">Guardar</button>
-              <button (click)="cancelInlineEdit()" class="secondary">Cancelar</button>
-            </div>
+          <div class="task-details">
+            <h3>{{ task.name }}</h3>
             <p>
               Estado: {{ task.status }}
               <span *ngIf="task.isDeleted" class="deleted-indicator">(Eliminada)</span>
             </p>
-            <!-- Si es admin, muestra a qué usuario pertenece la tarea -->
             <p *ngIf="currentUser()?.role === 'admin' && task.userId" class="task-user">
               Usuario: {{ task.userId.name }}
             </p>
@@ -248,8 +248,8 @@
             <!-- Admin-only button for deleted tasks -->
             <button *ngIf="currentUser()?.role === 'admin' && task.isDeleted" type="button" (click)="restoreTask(task)">Restaurar</button>
             <!-- Delete button for active tasks, requires admin role or canDelete permission-->
-            <button *ngIf="!task.isDeleted && (user.role === 'admin' || user.canDelete)" type="button" class="danger" (click)="deleteTask(task)">Eliminar</button>
-            <button *ngIf="!task.isDeleted && (user.role === 'admin' || user.canEditTask) && inlineEditingTaskId() !== task._id" type="button" class="secondary" (click)="startInlineEdit(task)">Editar</button>
+            <button *ngIf="!task.isDeleted && (user.role === 'admin' || user.canDelete)" type="button" class="danger" (click)="deleteTask(task)">Eliminar</button>            
+            <button *ngIf="!task.isDeleted && (user.role === 'admin' || user.canEditTask)" type="button" class="secondary" (click)="editTask(task)">Editar</button>
           </div>
         </article>
       </div>

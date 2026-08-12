@@ -80,12 +80,13 @@ app.get('/api/tasks', async (req, res) => {
 // 2. Crear nueva tarea
 app.post('/api/tasks', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    if (!userId) {
+    const requestorId = req.headers['x-user-id'];
+    const requestorRole = req.headers['x-user-role'];
+    if (!requestorId) {
       return res.status(401).json({ message: 'No se proporcionó el ID de usuario' });
     }
 
-    const { name, status } = req.body;
+    const { name, status, userId: assignedUserId } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ message: 'El nombre de la tarea es obligatorio' });
     }
@@ -93,7 +94,13 @@ app.post('/api/tasks', async (req, res) => {
       return res.status(400).json({ message: 'Estado no válido' });
     }
 
-    const taskData = { name: name.trim(), userId: userId, status: status || 'ejecutando' };
+    let taskOwnerId = requestorId;
+    // Only an admin can create a task for another user.
+    if (requestorRole === 'admin' && assignedUserId) {
+      taskOwnerId = assignedUserId;
+    }
+
+    const taskData = { name: name.trim(), userId: taskOwnerId, status: status || 'ejecutando' };
 
     const task = new Task(taskData);
     const savedTask = await task.save();
@@ -152,22 +159,26 @@ app.put('/api/tasks/:id', async (req, res) => {
   try {
     const userRole = req.headers['x-user-role'];
     const userCanEdit = req.headers['x-user-can-edit-task'] === 'true';
-    const userId = req.headers['x-user-id'];
-    const { name, status } = req.body;
+    const { name, status, userId: assignedUserId } = req.body;
 
     // Only admins or users with canEditTask permission can edit tasks
     if (userRole !== 'admin' && !userCanEdit) {
       return res.status(403).json({ message: 'No tiene permiso para editar tareas.' });
     }
 
-    if (!name || !name.trim()) {
+    if (name !== undefined && (!name || !name.trim())) {
       return res.status(400).json({ message: 'El nombre de la tarea es obligatorio' });
     }
-    if (!status || !['completada', 'ejecutando', 'acumulada'].includes(status)) {
+    if (status !== undefined && !['completada', 'ejecutando', 'acumulada'].includes(status)) {
       return res.status(400).json({ message: 'Estado no válido' });
     }
 
-    const updateData = { name: name.trim(), status: status };
+    const updateData = {};
+    if (name !== undefined) updateData.name = name.trim();
+    if (status !== undefined) updateData.status = status;
+    if (userRole === 'admin' && assignedUserId) {
+      updateData.userId = assignedUserId;
+    }
 
     const updatedTask = await Task.findByIdAndUpdate(
       req.params.id,

@@ -89,14 +89,11 @@ export class App implements OnDestroy {
   protected readonly newTaskName = signal('');
   protected readonly taskQuery = signal('');
 
-  // Signals for task summary
-  protected readonly inlineEditingTaskId = signal<string | null>(null);
-  protected readonly inlineEditingTaskName = signal<string>('');
   protected readonly completedTasksCount = computed(() => this.tasks().filter(t => t.status === 'completada').length);
   protected readonly runningTasksCount = computed(() => this.tasks().filter(t => t.status === 'ejecutando' && !t.isDeleted).length);
   protected readonly accumulatedTasksCount = computed(() => this.tasks().filter(t => t.status === 'acumulada' && !t.isDeleted).length);
   protected readonly currentFilterStatus = signal<'all' | Task['status'] | 'eliminadas'>('all');
-  protected readonly taskForm = signal({ name: '', status: 'ejecutando' as Task['status'] }); // Form for adding/editing tasks
+  protected readonly taskForm = signal({ name: '', status: 'ejecutando' as Task['status'], userId: '' }); // Form for adding/editing tasks
   protected readonly deletedTasksCount = computed(() => this.tasks().filter(t => t.isDeleted).length);
 
   protected getUserInitials(user: User): string {
@@ -703,11 +700,11 @@ export class App implements OnDestroy {
 
   // --- Task Management Methods ---
 
-  protected updateTaskFormField(field: 'name' | 'status', value: string) {
+  protected updateTaskFormField(field: 'name' | 'status' | 'userId', value: string) {
     this.taskForm.update(current => ({ ...current, [field]: value }));
   }
 
-  protected async saveTask(event: Event) {
+  protected async onTaskSubmit(event: Event) {
     event.preventDefault();
     const user = this.currentUser();
     if (!user) return;
@@ -718,15 +715,29 @@ export class App implements OnDestroy {
       return;
     }
 
+    const isEditing = !!this.editingTask();
+    const method = isEditing ? 'PUT' : 'POST';
+    const url = isEditing ? `${API_BASE}/api/tasks/${this.editingTask()?._id}` : `${API_BASE}/api/tasks`;
+
+    const body: { name: string; status: string; userId?: string } = {
+      name: name.trim(),
+      status: status,
+    };
+
+    // Only admins can assign/re-assign tasks.
+    if (user.role === 'admin' && this.taskForm().userId) {
+      body.userId = this.taskForm().userId;
+    }
+
     try {
-      const response = await fetch(`${API_BASE}/api/tasks`, {
-        method: 'POST',
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           'x-user-id': user._id,
           'x-user-role': user.role,
         },
-        body: JSON.stringify({ name: name.trim(), status })
+        body: JSON.stringify(body)
       });
 
       if (!response.ok) {
@@ -738,47 +749,13 @@ export class App implements OnDestroy {
         throw new Error(errorMessage);
       }
 
-      const createdTask = await response.json();
-      this.tasks.update(current => [createdTask, ...current]);
+      const savedTask = await response.json();
+      if (isEditing) {
+        this.tasks.update(current => current.map(t => (t._id === savedTask._id ? savedTask : t)));
+      } else {
+        this.tasks.update(current => [savedTask, ...current]);
+      }
       this.cancelEditTask(); // Reset form and hide it
-    } catch (err) {
-      this.error.set(String(err));
-    }
-  }
-
-  protected startInlineEdit(task: Task) {
-    this.cancelEditTask(); // Ensure top form is closed
-    this.inlineEditingTaskId.set(task._id);
-    this.inlineEditingTaskName.set(task.name);
-  }
-
-  protected cancelInlineEdit() {
-    this.inlineEditingTaskId.set(null);
-  }
-
-  protected async saveInlineEdit(task: Task) {
-    const newName = this.inlineEditingTaskName().trim();
-    const user = this.currentUser();
-    if (!newName || newName === task.name || !user) {
-      this.cancelInlineEdit();
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE}/api/tasks/${task._id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user._id,
-          'x-user-role': user.role,
-          'x-user-can-edit-task': String(!!user.canEditTask),
-        },
-        body: JSON.stringify({ name: newName, status: task.status }),
-      });
-      if (!response.ok) throw new Error('No se pudo guardar la tarea');
-      const updatedTask = await response.json();
-      this.tasks.update(current => current.map(t => (t._id === updatedTask._id ? updatedTask : t)));
-      this.cancelInlineEdit();
     } catch (err) {
       this.error.set(String(err));
     }
@@ -786,7 +763,19 @@ export class App implements OnDestroy {
 
   protected openAddTaskForm() {
     this.editingTask.set(null);
-    this.taskForm.set({ name: '', status: 'ejecutando' });
+    this.taskForm.set({ name: '', status: 'ejecutando', userId: this.currentUser()?._id ?? '' });
+    this.isTaskFormVisible.set(true);
+    this.error.set(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  protected editTask(task: Task) {
+    this.editingTask.set(task);
+    this.taskForm.set({
+      name: task.name,
+      status: task.status,
+      userId: task.userId._id,
+    });
     this.isTaskFormVisible.set(true);
     this.error.set(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -794,7 +783,7 @@ export class App implements OnDestroy {
 
   protected cancelEditTask() {
     this.editingTask.set(null);
-    this.taskForm.set({ name: '', status: 'ejecutando' });
+    this.taskForm.set({ name: '', status: 'ejecutando', userId: '' });
     this.isTaskFormVisible.set(false);
     this.error.set(null);
   }
