@@ -501,6 +501,17 @@ export class App implements OnDestroy {
   }
 
   protected async deleteUser(user: User) {
+    if (user.role === 'admin') {
+      const adminCount = this.users().filter(u => u.role === 'admin').length;
+      if (adminCount <= 3) {
+        this.error.set('Primero asigna el rol a otro usuario, agrega un nuevo administrador en crear usuario');
+        return;
+      }
+    }
+
+    if (!confirm(`¿Estás seguro de que quieres eliminar al usuario "${user.name}"?`)) {
+      return;
+    }
     try {
       const response = await fetch(`${API_BASE}/api/users/${user._id}`, { method: 'DELETE' });
       if (!response.ok) {
@@ -776,9 +787,8 @@ export class App implements OnDestroy {
       status: task.status,
       userId: task.userId._id,
     });
-    this.isTaskFormVisible.set(true);
+    this.isTaskFormVisible.set(false); // Oculta el formulario superior si está abierto
     this.error.set(null);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   protected cancelEditTask() {

@@ -442,11 +442,20 @@ app.put('/api/users/:id', async (req, res) => {
 // 8. Eliminar usuario
 app.delete('/api/users/:id', async (req, res) => {
   try {
-    const deletedUser = await User.findByIdAndDelete(req.params.id);
-
-    if (!deletedUser) {
+    const userToDelete = await User.findById(req.params.id);
+    if (!userToDelete) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
+
+    // Validation: Prevent deleting an admin if it would leave 3 or fewer admins
+    if (userToDelete.role === 'admin') {
+      const adminCount = await User.countDocuments({ role: 'admin' });
+      if (adminCount <= 3) {
+        return res.status(403).json({ message: 'No se puede eliminar el administrador. Debe haber más de 3 administradores.' });
+      }
+    }
+
+    await userToDelete.deleteOne();
 
     res.json({ message: 'Usuario eliminado correctamente' });
   } catch (error) {
