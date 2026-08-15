@@ -741,13 +741,19 @@ export class App implements OnDestroy {
     }
 
     try {
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        'x-user-id': user._id,
+        'x-user-role': user.role,
+      };
+
+      if (user.canEditTask) {
+        headers['x-user-can-edit-task'] = 'true';
+      }
+
       const response = await fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user._id,
-          'x-user-role': user.role,
-        },
+        headers,
         body: JSON.stringify(body)
       });
 
@@ -781,6 +787,22 @@ export class App implements OnDestroy {
   }
 
   protected editTask(task: Task) {
+    const user = this.currentUser();
+    if (!user) return;
+
+    // Si el usuario no es administrador:
+    if (user.role !== 'admin') {
+      // No puede editar tareas completadas.
+      if (task.status === 'completada') {
+        this.error.set('Solo un administrador puede editar una tarea completada.');
+        return;
+      }
+      // Para tareas no completadas, necesita el permiso canEditTask.
+      if (!user.canEditTask) {
+        this.error.set('No tienes permiso para editar tareas.');
+        return;
+      }
+    }
     this.editingTask.set(task);
     this.taskForm.set({
       name: task.name,
@@ -800,17 +822,32 @@ export class App implements OnDestroy {
 
   protected async updateTaskStatus(task: Task, status: Task['status']) {
     if (task.status === status) return;
+    const user = this.currentUser();
+    if (!user) return; // No debería ocurrir si la UI está bien guardada
 
+    // Si el usuario no es administrador:
+    if (user.role !== 'admin') {
+      // No puede cambiar el estado de tareas completadas.
+      if (task.status === 'completada') {
+        this.error.set('Solo un administrador puede cambiar el estado de una tarea completada.');
+        return;
+      }
+      // Para tareas no completadas, necesita el permiso canEditTask.
+      if (!user.canEditTask) {
+        this.error.set('No tienes permiso para cambiar el estado de la tarea.');
+        return;
+      }
+    }
     try {
-      const user = this.currentUser();
-      if (!user) return;
-
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
         'x-user-id': user._id,
       };
       if (user.role === 'admin') {
         headers['x-user-role'] = 'admin';
+      }
+      if (user.canEditTask) {
+        headers['x-user-can-edit-task'] = 'true';
       }
 
       const response = await fetch(`${API_BASE}/api/tasks/${task._id}/status`, {
@@ -832,6 +869,14 @@ export class App implements OnDestroy {
       this.tasks.update(current =>
         current.map(t => t._id === updatedTask._id ? updatedTask : t)
       );
+
+      // If a non-admin user with edit permissions completes a task,
+      // update their local state to reflect the revoked permission.
+      if (status === 'completada' && user.role !== 'admin' && user.canEditTask) {
+        this.currentUser.update(current =>
+          current ? { ...current, canEditTask: false } : null
+        );
+      }
     } catch (err) {
       this.error.set(String(err));
     }

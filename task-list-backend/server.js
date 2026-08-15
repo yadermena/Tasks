@@ -116,9 +116,20 @@ app.post('/api/tasks', async (req, res) => {
 // 3. Actualizar estado o realizar eliminación lógica (eliminado)
 app.put('/api/tasks/:id/status', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
     const userRole = req.headers['x-user-role'];
     const userCanEdit = req.headers['x-user-can-edit-task'] === 'true';
     const { status } = req.body;
+
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ message: 'Tarea no encontrada' });
+    }
+
+    // Only admins can change the status of a completed task.
+    if (task.status === 'completada' && userRole !== 'admin') {
+      return res.status(403).json({ message: 'No tiene permiso para cambiar el estado de una tarea completada.' });
+    }
 
     if (userRole !== 'admin' && !userCanEdit) {
       return res.status(403).json({ message: 'No tiene permiso para editar el estado de la tarea.' });
@@ -146,6 +157,11 @@ app.put('/api/tasks/:id/status', async (req, res) => {
       return res.status(404).json({ message: 'Tarea no encontrada' });
     }
 
+    // If a non-admin user with edit permissions completes a task, revoke their permission.
+    if (isCompleted && userRole !== 'admin' && userCanEdit) {
+      await User.findByIdAndUpdate(userId, { canEditTask: false });
+    }
+
     res.json(updatedTask);
   } catch (error) {
     console.error('Error al actualizar la tarea:', error);
@@ -164,6 +180,16 @@ app.put('/api/tasks/:id', async (req, res) => {
     // Only admins or users with canEditTask permission can edit tasks
     if (userRole !== 'admin' && !userCanEdit) {
       return res.status(403).json({ message: 'No tiene permiso para editar tareas.' });
+    }
+
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ message: 'Tarea no encontrada' });
+    }
+
+    // If the task is completed, only admins can edit it.
+    if (task.status === 'completada' && userRole !== 'admin') {
+      return res.status(403).json({ message: 'No se pueden editar los detalles de una tarea completada.' });
     }
 
     if (name !== undefined && (!name || !name.trim())) {
@@ -301,15 +327,6 @@ app.post('/api/users', async (req, res) => {
       return res.status(400).json({ message: `El rol '${role}' no es válido.` });
     }
 
-    if (companyIds && companyIds.length > 0) {
-      const existingAssignment = await User.findOne({ companies: { $in: companyIds } });
-      if (existingAssignment) {
-        const conflictingId = companyIds.find(id => existingAssignment.companies.some(cId => cId.toString() === id));
-        const assignedCompany = await Empresa.findById(conflictingId);
-        return res.status(409).json({ message: `La empresa '${assignedCompany?.name || 'desconocida'}' ya está asignada a otro usuario.` });
-      }
-    }
-
     const salt = generateSalt();
     const hashedPassword = hashPassword(password, salt);
 
@@ -319,7 +336,8 @@ app.post('/api/users', async (req, res) => {
       role: role || 'viewer',
       password: hashedPassword,
       salt: salt,
-      companies: companyIds || [],
+      // Se asegura que no haya IDs de empresa duplicados para el mismo usuario.
+      companies: [...new Set(companyIds || [])],
       ...roleDoc.permissions.toObject() // Asigna los permisos por defecto del rol
     });
 
@@ -392,24 +410,9 @@ app.put('/api/users/:id', async (req, res) => {
       updateData.password = hashPassword(password, updateData.salt);
     }
     if (req.body.hasOwnProperty('companyIds')) {
+      // Se asegura que no haya IDs de empresa duplicados para el mismo usuario.
       const companyIds = req.body.companyIds || [];
-      // Find other users who are assigned to any of the companies we are trying to assign.
-      const conflictingUsers = await User.find({
-        companies: { $in: companyIds },
-        _id: { $ne: req.params.id } 
-      });
-
-      // For each of those users, remove the companies that are being reassigned.
-      const updatePromises = conflictingUsers.map(user => {
-        const companiesToPull = user.companies.filter(companyId => companyIds.includes(String(companyId)));
-        return User.updateOne(
-          { _id: user._id },
-          { $pull: { companies: { $in: companiesToPull } } }
-        );
-      });
-      await Promise.all(updatePromises);
-
-      updateData.companies = companyIds;
+      updateData.companies = [...new Set(companyIds)];
     }
 
     // Ensure updateData is not empty before attempting to update
