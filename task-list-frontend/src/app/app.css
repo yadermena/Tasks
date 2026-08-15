@@ -327,6 +327,50 @@ button:hover {
   flex-grow: 1;
 }
 
+.task-filters {
+  display: flex;
+  gap: 1rem;
+  flex-grow: 1;
+}
+
+.user-task-filter {
+  position: relative; /* Needed for the dropdown menu */
+}
+
+.user-task-filter .dropdown-toggle {
+  min-width: 200px;
+}
+
+.user-task-filter .dropdown-menu {
+  left: 0; /* Align to the left of the button */
+  right: auto;
+  width: 100%; /* Match button width */
+  min-width: 200px;
+}
+
+.dropdown-options-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.dropdown-options-list li button {
+  width: 100%;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  color: #334155;
+}
+
+.dropdown-options-list li button:hover {
+  background-color: #f1f5f9;
+  box-shadow: none;
+  transform: none;
+}
+
 .status-bar {
   padding: 0.9rem 1rem;
   border-radius: 0.75rem;

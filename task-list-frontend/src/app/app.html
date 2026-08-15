@@ -207,13 +207,31 @@
     <section class="users-section">
       <div class="users-toolbar">
         <h2>Lista de Tareas</h2>
-        <input
-          type="search"
-          [placeholder]="currentUser()?.role === 'admin' ? 'Buscar tarea o usuario...' : 'Buscar tarea...'"
-          aria-label="Buscar tareas"
-          [value]="taskQuery()"
-          (input)="updateTaskQuery($any($event.target).value)"
-        />
+        <div class="task-filters">
+          <div *ngIf="currentUser()?.role === 'admin'" class="custom-dropdown user-task-filter">
+            <button type="button" class="dropdown-toggle" (click)="isUserFilterDropdownOpen.set(!isUserFilterDropdownOpen())">
+              <span>{{ selectedTaskUserName() }}</span>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="dropdown-arrow">
+                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+              </svg>
+            </button>
+            <div class="dropdown-menu" *ngIf="isUserFilterDropdownOpen()">
+              <ul class="dropdown-options-list">
+                <li><button (click)="selectTaskUser('all')">Todos los usuarios</button></li>
+                <li *ngFor="let user of users()">
+                  <button (click)="selectTaskUser(user._id)">{{ user.name }}</button>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <input
+            type="search"
+            [placeholder]="currentUser()?.role === 'admin' ? 'Buscar tarea o usuario...' : 'Buscar tarea...'"
+            aria-label="Buscar tareas"
+            [value]="taskQuery()"
+            (input)="updateTaskQuery($any($event.target).value)"
+          />
+        </div>
       </div>
 
       <div *ngIf="taskLoading()" class="status-bar">Cargando tareas...</div>

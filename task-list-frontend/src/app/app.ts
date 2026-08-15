@@ -77,6 +77,7 @@ export class App implements OnDestroy {
   protected readonly editingEmpresaId = signal<string | null>(null);
   protected readonly isEmpresaFormVisible = signal(false);
   protected readonly isCompanyDropdownOpen = signal(false);
+  protected readonly isUserFilterDropdownOpen = signal(false);
   protected readonly empresaQuery = signal('');
 
   protected readonly realUser = signal<User | null>(null);
@@ -88,6 +89,7 @@ export class App implements OnDestroy {
   protected readonly taskLoading = signal(false);
   protected readonly newTaskName = signal('');
   protected readonly taskQuery = signal('');
+  protected readonly selectedTaskUserId = signal<string | 'all'>('all');
 
   protected readonly completedTasksCount = computed(() => this.tasks().filter(t => t.status === 'completada').length);
   protected readonly runningTasksCount = computed(() => this.tasks().filter(t => t.status === 'ejecutando' && !t.isDeleted).length);
@@ -157,6 +159,15 @@ export class App implements OnDestroy {
     return selectedNames.join(', ');
   });
 
+  protected readonly selectedTaskUserName = computed(() => {
+    const selectedId = this.selectedTaskUserId();
+    if (selectedId === 'all') {
+      return 'Todos los usuarios';
+    }
+    const user = this.users().find(u => u._id === selectedId);
+    return user?.name ?? 'Todos los usuarios';
+  });
+
   protected readonly currentUserInitials = computed(() => {
     const user = this.currentUser();
     if (!user) return '';
@@ -211,15 +222,22 @@ export class App implements OnDestroy {
     const term = this.taskQuery().trim().toLowerCase();
     const allTasks = this.tasks();
     const filterStatus = this.currentFilterStatus();
+    const selectedUserId = this.selectedTaskUserId();
 
-    let filteredByStatus = allTasks;
+    // Filter by selected user first (if admin)
+    let userTasks = allTasks;
+    if (this.currentUser()?.role === 'admin' && selectedUserId !== 'all') {
+      userTasks = allTasks.filter(task => task.userId?._id === selectedUserId);
+    }
+
+    let filteredByStatus = userTasks;
     if (filterStatus !== 'all') {
       if (filterStatus === 'ejecutando' || filterStatus === 'acumulada') {
-        filteredByStatus = allTasks.filter(task => task.status === filterStatus && !task.isDeleted);
+        filteredByStatus = userTasks.filter(task => task.status === filterStatus && !task.isDeleted);
       } else if (filterStatus === 'completada') {
-        filteredByStatus = allTasks.filter(task => task.status === filterStatus);
+        filteredByStatus = userTasks.filter(task => task.status === filterStatus);
       } else if (filterStatus === 'eliminadas') {
-        filteredByStatus = allTasks.filter(task => task.isDeleted);
+        filteredByStatus = userTasks.filter(task => task.isDeleted);
       }
     }
 
@@ -260,11 +278,15 @@ export class App implements OnDestroy {
   }
 
   private onDocumentClick(event: MouseEvent) {
+    const target = event.target as HTMLElement;
     if (this.isCompanyDropdownOpen()) {
-      const target = event.target as HTMLElement;
       if (!target.closest('.custom-dropdown')) {
         this.isCompanyDropdownOpen.set(false);
       }
+    }
+    // La variable 'target' estaba fuera de alcance aquí.
+    if (this.isUserFilterDropdownOpen() && !target.closest('.user-task-filter')) {
+      this.isUserFilterDropdownOpen.set(false);
     }
   }
 
@@ -672,6 +694,11 @@ export class App implements OnDestroy {
 
   protected trackTaskById(index: number, task: Task) {
     return task._id;
+  }
+
+  protected selectTaskUser(userId: string | 'all') {
+    this.selectedTaskUserId.set(userId);
+    this.isUserFilterDropdownOpen.set(false);
   }
 
   protected updateTaskQuery(value: string) {
