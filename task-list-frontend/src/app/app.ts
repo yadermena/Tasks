@@ -91,12 +91,22 @@ export class App implements OnDestroy {
   protected readonly taskQuery = signal('');
   protected readonly selectedTaskUserId = signal<string | 'all'>('all');
 
-  protected readonly completedTasksCount = computed(() => this.tasks().filter(t => t.status === 'completada').length);
-  protected readonly runningTasksCount = computed(() => this.tasks().filter(t => t.status === 'ejecutando' && !t.isDeleted).length);
-  protected readonly accumulatedTasksCount = computed(() => this.tasks().filter(t => t.status === 'acumulada' && !t.isDeleted).length);
+  protected readonly tasksForSummary = computed(() => {
+    const allTasks = this.tasks();
+    const selectedUserId = this.selectedTaskUserId();
+
+    if (this.currentUser()?.role === 'admin' && selectedUserId !== 'all') {
+      return allTasks.filter(task => task.userId?._id === selectedUserId);
+    }
+    return allTasks;
+  });
+
+  protected readonly completedTasksCount = computed(() => this.tasksForSummary().filter(t => t.status === 'completada').length);
+  protected readonly runningTasksCount = computed(() => this.tasksForSummary().filter(t => t.status === 'ejecutando' && !t.isDeleted).length);
+  protected readonly accumulatedTasksCount = computed(() => this.tasksForSummary().filter(t => t.status === 'acumulada' && !t.isDeleted).length);
   protected readonly currentFilterStatus = signal<'all' | Task['status'] | 'eliminadas'>('all');
   protected readonly taskForm = signal({ name: '', status: 'ejecutando' as Task['status'], userId: '' }); // Form for adding/editing tasks
-  protected readonly deletedTasksCount = computed(() => this.tasks().filter(t => t.isDeleted).length);
+  protected readonly deletedTasksCount = computed(() => this.tasksForSummary().filter(t => t.isDeleted).length);
 
   protected getUserInitials(user: User): string {
     if (!user?.name) return '';
