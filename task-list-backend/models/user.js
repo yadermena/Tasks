@@ -36,6 +36,10 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  canAccumulateTask: {
+    type: Boolean,
+    default: false
+  },
   companies: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Empresa'

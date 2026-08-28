@@ -1,0 +1,54 @@
+<div class="login-wrapper">
+  <div class="login-card">
+    <div class="login-header">
+      <div class="logo-badge">📋</div>
+      <h1>Iniciar Sesión</h1>
+      <p>Gestor de Tareas & Administración</p>
+    </div>
+
+    <div *ngIf="error()" class="status-bar error">
+      {{ error() }}
+    </div>
+
+    <form (submit)="onSubmit($event)" class="login-form">
+      <div class="form-group">
+        <label for="login-email">Correo electrónico</label>
+        <input
+          id="login-email"
+          type="email"
+          placeholder="ejemplo@correo.com"
+          [value]="email()"
+          (input)="updateField('email', $any($event.target).value)"
+          required
+          autocomplete="username"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="login-password">Contraseña</label>
+        <div class="password-input-container">
+          <input
+            id="login-password"
+            [type]="showPassword() ? 'text' : 'password'"
+            placeholder="Tu contraseña"
+            [value]="password()"
+            (input)="updateField('password', $any($event.target).value)"
+            required
+            autocomplete="current-password"
+          />
+          <button
+            type="button"
+            class="show-password-btn"
+            (click)="showPassword.update(v => !v)"
+          >
+            {{ showPassword() ? 'Ocultar' : 'Ver' }}
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" class="login-submit-btn" [disabled]="loading()">
+        {{ loading() ? 'Ingresando...' : 'Iniciar Sesión' }}
+      </button>
+    </form>
+  </div>
+</div>

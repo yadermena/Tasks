@@ -1,4 +1,9 @@
-<main class="app-shell" [class.sidebar-open]="isSidebarOpen()">
+<!-- Login Component View if not authenticated -->
+<ng-container *ngIf="!currentUser()">
+  <app-login (loginSuccess)="handleLoginSuccess($event)"></app-login>
+</ng-container>
+
+<main *ngIf="currentUser()" class="app-shell" [class.sidebar-open]="isSidebarOpen()">
   <!-- Hamburger menu button -->
   <button class="hamburger-menu" (click)="toggleSidebar()">☰</button>
 
@@ -633,8 +638,20 @@
           type="button"
           (click)="toggleTaskEditPermission(user)"
           [ngClass]="!!user.canEditTask ? 'danger' : 'success'"
+          [disabled]="!user.canEditTask && !canGrantTaskPermissions()"
         >
           {{ !!user.canEditTask ? 'Quitar Permiso' : 'Dar Permiso' }}
+        </button>
+      </div>
+      <div class="permission-toggle">
+        <label for="can-accumulate-task">Permiso para Acumular Tareas</label>
+        <button
+          type="button"
+          (click)="toggleAccumulatePermission(user)"
+          [ngClass]="!!user.canAccumulateTask ? 'danger' : 'success'"
+          [disabled]="!user.canAccumulateTask && !canGrantTaskPermissions()"
+        >
+          {{ !!user.canAccumulateTask ? 'Quitar Permiso' : 'Dar Permiso' }}
         </button>
       </div>
       <div class="modal-actions">

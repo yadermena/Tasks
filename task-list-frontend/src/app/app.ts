@@ -1,7 +1,8 @@
 import { Component, computed, signal, Inject, PLATFORM_ID, OnDestroy } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { LoginComponent } from './login/login';
 
-const API_BASE = 'http://127.0.0.1:5000';
+const API_BASE = 'http://localhost:5000';
 
 type UserRole = 'admin' | 'editor' | 'viewer';
 
@@ -18,6 +19,7 @@ interface User {
   canDelete?: boolean;
   canEditProfile?: boolean;
   canEditTask?: boolean;
+  canAccumulateTask?: boolean;
   createdAt: string;
 }
 
@@ -45,7 +47,7 @@ interface Task {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, LoginComponent],
   templateUrl: './app.html',
   styleUrls: ['./app.css']
 })
@@ -184,6 +186,29 @@ export class App implements OnDestroy {
     return this.getUserInitials(user);
   });
 
+  protected readonly canGrantTaskPermissions = computed(() => {
+    const user = this.permissionsModalUser();
+    if (!user) {
+      // If no user is in the modal, this doesn't apply.
+      return false;
+    }
+    // When an admin is logged in, this.tasks() contains all tasks.
+    const allTasks = this.tasks();
+    // Filter for this specific user's non-deleted tasks.
+    const userTasks = allTasks.filter(t => t.userId?._id === user._id && !t.isDeleted);
+    // If there are no tasks, can't grant permission.
+    if (userTasks.length === 0) {
+      return false;
+    }
+    // If all tasks are completed, can't grant permission.
+    const allTasksCompleted = userTasks.every(t => t.status === 'completada');
+    if (allTasksCompleted) {
+      return false;
+    }
+    // Otherwise, it's ok to grant permission.
+    return true;
+  });
+
   protected readonly filteredUsers = computed(() => {
     const term = this.query().trim().toLowerCase();
     const nonAdminUsers = this.users().filter(user => user.role !== 'admin');
@@ -263,17 +288,9 @@ export class App implements OnDestroy {
 
   constructor(@Inject(PLATFORM_ID) private platformId: object) {
     if (isPlatformBrowser(this.platformId)) {
-      // On initial load, check if a user was "logged in" from a previous session
-      const savedUserId = localStorage.getItem('currentUserId');
-      if (savedUserId) {
-        // If so, load that user's data and tasks.
-        // This makes it feel like a real session.
-        void this.loginById(savedUserId);
-      } else {
-        // Otherwise, just load the admin dashboard.
-        void this.loadUsers();
-        void this.loadEmpresas();
-      }
+      // Always load initial data but don't auto-login to ensure we stay on the login screen
+      void this.loadUsers();
+      void this.loadEmpresas();
       document.addEventListener('click', this.onDocumentClick.bind(this));
     } else {
       void this.loadUsers();
@@ -335,6 +352,13 @@ export class App implements OnDestroy {
   }
 
   // --- User "Session" Management ---
+
+  protected handleLoginSuccess(user: User) {
+    this.realUser.set(user);
+    this._performLogin(user);
+    void this.loadUsers();
+    void this.loadEmpresas();
+  }
 
   protected login(user: User) {
     this.loginModalUser.set(user);
@@ -829,12 +853,7 @@ export class App implements OnDestroy {
 
     // Si el usuario no es administrador:
     if (user.role !== 'admin') {
-      // No puede editar tareas completadas.
-      if (task.status === 'completada') {
-        this.error.set('Solo un administrador puede editar una tarea completada.');
-        return;
-      }
-      // Para tareas no completadas, necesita el permiso canEditTask.
+      // Para editar cualquier tarea, necesita el permiso `canEditTask`.
       if (!user.canEditTask) {
         this.error.set('No tienes permiso para editar tareas.');
         return;
@@ -864,15 +883,24 @@ export class App implements OnDestroy {
 
     // Si el usuario no es administrador:
     if (user.role !== 'admin') {
-      // No puede cambiar el estado de tareas completadas.
-      if (task.status === 'completada') {
-        this.error.set('Solo un administrador puede cambiar el estado de una tarea completada.');
-        return;
+      // A user with `canEditTask` can perform any status change.
+      if (user.canEditTask) {
+        // This user has full edit permissions, so no further checks are needed.
+      } else {
+        // If they don't have the general edit permission, they cannot change completed tasks at all.
+        if (task.status === 'completada') {
+          this.error.set('Solo un administrador o un usuario con permiso de edición puede cambiar el estado de una tarea completada.');
+          return;
+        }
       }
-      // Para tareas no completadas, necesita el permiso canEditTask.
+      // If they don't have it, we check for the more specific `canAccumulateTask`.
       if (!user.canEditTask) {
-        this.error.set('No tienes permiso para cambiar el estado de la tarea.');
-        return;
+        // Without the general permission, they can only accumulate, if they have that specific permission.
+        if (status !== 'acumulada' || !user.canAccumulateTask) {
+          const message = status === 'acumulada' ? 'No tienes permiso para acumular tareas.' : 'No tienes permiso para cambiar el estado de la tarea.';
+          this.error.set(message);
+          return;
+        }
       }
     }
     try {
@@ -885,6 +913,9 @@ export class App implements OnDestroy {
       }
       if (user.canEditTask) {
         headers['x-user-can-edit-task'] = 'true';
+      }
+      if (user.canAccumulateTask) {
+        headers['x-user-can-accumulate-task'] = 'true';
       }
 
       const response = await fetch(`${API_BASE}/api/tasks/${task._id}/status`, {
@@ -907,12 +938,29 @@ export class App implements OnDestroy {
         current.map(t => t._id === updatedTask._id ? updatedTask : t)
       );
 
-      // If a non-admin user with edit permissions completes a task,
-      // update their local state to reflect the revoked permission.
-      if (status === 'completada' && user.role !== 'admin' && user.canEditTask) {
-        this.currentUser.update(current =>
-          current ? { ...current, canEditTask: false } : null
-        );
+      // If a task was completed, a user's permissions might have been revoked on the backend.
+      // We need to check if all of that user's tasks are now complete and update the local state
+      // to keep the UI consistent, especially the permissions modal.
+      if (status === 'completada') {
+        const taskOwnerId = updatedTask.userId._id;
+        const allTasks = this.tasks();
+        const userTasks = allTasks.filter(t => t.userId?._id === taskOwnerId && !t.isDeleted);
+        const allTasksCompleted = userTasks.every(t => t.status === 'completada');
+
+        if (allTasksCompleted) {
+          // Update the user in the main `users` list to keep the admin panel consistent.
+          this.users.update(allUsers => allUsers.map(u =>
+            u._id === taskOwnerId ? { ...u, canEditTask: false, canAccumulateTask: false } : u
+          ));
+          // Also update the user in the permissions modal if it's open for this user.
+          if (this.permissionsModalUser()?._id === taskOwnerId) {
+            this.permissionsModalUser.update(current => current ? { ...current, canEditTask: false, canAccumulateTask: false } : null);
+          }
+          // If the affected user is the currently logged-in user, update their signal too.
+          if (this.currentUser()?._id === taskOwnerId) {
+            this.currentUser.update(current => current ? { ...current, canEditTask: false, canAccumulateTask: false } : null);
+          }
+        }
       }
     } catch (err) {
       this.error.set(String(err));
@@ -1075,12 +1123,53 @@ export class App implements OnDestroy {
   }
 
   protected async toggleTaskEditPermission(user: User) {
+    // If we are trying to GRANT the permission, first check if it's allowed.
+    if (!user.canEditTask && !this.canGrantTaskPermissions()) {
+      this.error.set('No se puede otorgar permiso: el usuario no tiene tareas activas o todas están completas.');
+      return;
+    }
     const canEditTask = !user.canEditTask;
     try {
       const response = await fetch(`${API_BASE}/api/users/${user._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ canEditTask })
+      });
+
+      if (!response.ok) {
+        throw new Error('No se pudo actualizar el permiso');
+      }
+
+      const updatedUser = await response.json();
+      // Update user in the main list
+      this.users.update(current =>
+        current.map(u => u._id === updatedUser._id ? updatedUser : u)
+      );
+      // Also update the user in the modal to reflect the change
+      this.permissionsModalUser.set(updatedUser);
+
+      // If the currently logged-in user is the one being edited, update their state too.
+      if (this.currentUser()?._id === updatedUser._id) {
+        this.currentUser.set(updatedUser);
+      }
+    } catch (err) {
+      this.error.set(String(err));
+      this.closePermissionsModal();
+    }
+  }
+
+  protected async toggleAccumulatePermission(user: User) {
+    // If we are trying to GRANT the permission, first check if it's allowed.
+    if (!user.canAccumulateTask && !this.canGrantTaskPermissions()) {
+      this.error.set('No se puede otorgar permiso: el usuario no tiene tareas activas o todas están completas.');
+      return;
+    }
+    const canAccumulateTask = !user.canAccumulateTask;
+    try {
+      const response = await fetch(`${API_BASE}/api/users/${user._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ canAccumulateTask })
       });
 
       if (!response.ok) {
