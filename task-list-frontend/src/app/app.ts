@@ -211,19 +211,39 @@ export class App implements OnDestroy {
 
   protected readonly filteredUsers = computed(() => {
     const term = this.query().trim().toLowerCase();
-    const nonAdminUsers = this.users().filter(user => user.role !== 'admin');
+    const filter = this.userFilterStatus();
+    
+    let baseUsers = this.users().filter(user => user.role !== 'admin');
+
+    if (filter === 'editor') {
+      baseUsers = baseUsers.filter(u => u.role === 'editor');
+    } else if (filter === 'viewer') {
+      baseUsers = baseUsers.filter(u => u.role === 'viewer');
+    }
+    
+    if (filter === 'admin') {
+      return []; // In the main user list, we don't show admins if filtering for admins only (they are in their own section/view)
+    }
+    
     if (!term) {
-      return nonAdminUsers;
+      return baseUsers;
     } 
 
-    return nonAdminUsers.filter((user) => {
+    return baseUsers.filter((user) => {
       return `${user.name} ${user.email} ${user.role}`.toLowerCase().includes(term);
     });
   });
 
   protected readonly filteredAdminUsers = computed(() => {
     const term = this.query().trim().toLowerCase();
-    const adminUsers = this.users().filter(user => user.role === 'admin');
+    const filter = this.userFilterStatus();
+    
+    let adminUsers = this.users().filter(user => user.role === 'admin');
+    
+    if (filter === 'editor' || filter === 'viewer') {
+      return [];
+    }
+
     if (!term) {
       return adminUsers;
     }
@@ -231,6 +251,9 @@ export class App implements OnDestroy {
       return `${user.name} ${user.email}`.toLowerCase().includes(term);
     });
   });
+
+  protected readonly filteredEditors = computed(() => this.filteredUsers().filter(u => u.role === 'editor'));
+  protected readonly filteredViewers = computed(() => this.filteredUsers().filter(u => u.role === 'viewer'));
 
   protected readonly switchableUsers = computed(() => {
     const realUser = this.realUser();
@@ -286,11 +309,23 @@ export class App implements OnDestroy {
     });
   });
 
+  protected readonly totalUsersCount = computed(() => this.users().length);
+  protected readonly adminCount = computed(() => this.users().filter(u => u.role === 'admin').length);
+  protected readonly editorCount = computed(() => this.users().filter(u => u.role === 'editor').length);
+  protected readonly viewerCount = computed(() => this.users().filter(u => u.role === 'viewer').length);
+  protected readonly userFilterStatus = signal<'all' | 'admin' | 'editor' | 'viewer'>('all');
+
   constructor(@Inject(PLATFORM_ID) private platformId: object) {
     if (isPlatformBrowser(this.platformId)) {
-      // Always load initial data but don't auto-login to ensure we stay on the login screen
-      void this.loadUsers();
-      void this.loadEmpresas();
+      // On initial load, check if a user was "logged in" from a previous session
+      const savedUserId = localStorage.getItem('currentUserId');
+      if (savedUserId) {
+        // If so, load that user's data and tasks.
+        void this.loginById(savedUserId);
+      } else {
+        void this.loadUsers();
+        void this.loadEmpresas();
+      }
       document.addEventListener('click', this.onDocumentClick.bind(this));
     } else {
       void this.loadUsers();

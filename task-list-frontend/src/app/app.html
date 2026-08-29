@@ -331,6 +331,46 @@
         </div>
       </header>
 
+      <!-- User Summary Panel -->
+      <section class="task-summary-panel" *ngIf="currentUser()?.role === 'admin' || currentUser() === null">
+        <button
+          type="button"
+          class="summary-card"
+          [class.active]="userFilterStatus() === 'all'"
+          (click)="userFilterStatus.set('all')"
+        >
+          <h4>Total Usuarios</h4>
+          <p>{{ totalUsersCount() }}</p>
+        </button>
+        <button
+          type="button"
+          class="summary-card"
+          [class.active]="userFilterStatus() === 'admin'"
+          (click)="userFilterStatus.set('admin')"
+        >
+          <h4>Administradores</h4>
+          <p>{{ adminCount() }}</p>
+        </button>
+        <button
+          type="button"
+          class="summary-card"
+          [class.active]="userFilterStatus() === 'editor'"
+          (click)="userFilterStatus.set('editor')"
+        >
+          <h4>Editores</h4>
+          <p>{{ editorCount() }}</p>
+        </button>
+        <button
+          type="button"
+          class="summary-card"
+          [class.active]="userFilterStatus() === 'viewer'"
+          (click)="userFilterStatus.set('viewer')"
+        >
+          <h4>Viewers</h4>
+          <p>{{ viewerCount() }}</p>
+        </button>
+      </section>
+
       <div class="user-form-placeholder" *ngIf="!isUserFormVisible() && currentUser()?.role === 'admin'">
         <button (click)="openAddUserForm(false)">AGREGAR USUARIO</button>
       </div>
@@ -422,36 +462,76 @@
           <p>No hay usuarios para mostrar.</p>
         </div>
 
-        <div class="user-list" *ngIf="!loading() && filteredUsers().length > 0">
-          <article class="user-card" *ngFor="let user of filteredUsers(); trackBy: trackById">
-            <div class="user-info">
-              <button
-                class="user-avatar-button"
-                (click)="login(user)"
-                [title]="'Ver tareas de ' + user.name"
-                [style.background-color]="avatarColors().get(user._id)?.background"
-                [style.color]="avatarColors().get(user._id)?.text">
-                {{ getUserInitials(user) }}
-              </button>
-              <div>
-                <h3>{{ user.name }}</h3>
-                <p>{{ user.email }}</p>
-                <div *ngIf="user.companies && user.companies.length > 0" class="user-company-list">
-                  <span *ngFor="let company of user.companies" class="company-badge">
-                    {{ company.name }}
-                  </span>
+        <!-- Seccion Editores -->
+        <div class="users-section-group" *ngIf="!loading() && filteredEditors().length > 0">
+          <h3 class="section-subtitle">Editores</h3>
+          <div class="user-list">
+            <article class="user-card" *ngFor="let user of filteredEditors(); trackBy: trackById">
+              <div class="user-info">
+                <button
+                  class="user-avatar-button"
+                  (click)="login(user)"
+                  [title]="'Ver tareas de ' + user.name"
+                  [style.background-color]="avatarColors().get(user._id)?.background"
+                  [style.color]="avatarColors().get(user._id)?.text">
+                  {{ getUserInitials(user) }}
+                </button>
+                <div>
+                  <h3>{{ user.name }}</h3>
+                  <p>{{ user.email }}</p>
+                  <div *ngIf="user.companies && user.companies.length > 0" class="user-company-list">
+                    <span *ngFor="let company of user.companies" class="company-badge">
+                      {{ company.name }}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="user-meta" *ngIf="currentUser()?.role === 'admin'">
-              <span class="role-badge" [ngClass]="'role-' + user.role">{{ user.role }}</span>
-              <div class="card-actions">
-                <button type="button" class="secondary" (click)="editUser(user)">Editar</button>
-                <button type="button" class="secondary" (click)="openPermissionsModal(user)">Permisos</button>
-                <button type="button" class="danger" (click)="deleteUser(user)">Eliminar</button>                
+              <div class="user-meta" *ngIf="currentUser()?.role === 'admin'">
+                <span class="role-badge" [ngClass]="'role-' + user.role">{{ user.role }}</span>
+                <div class="card-actions">
+                  <button type="button" class="secondary" (click)="editUser(user)">Editar</button>
+                  <button type="button" class="secondary" (click)="openPermissionsModal(user)">Permisos</button>
+                  <button type="button" class="danger" (click)="deleteUser(user)">Eliminar</button>                
+                </div>
               </div>
-            </div>
           </article>
+          </div>
+        </div>
+
+        <!-- Seccion Viewers -->
+        <div class="users-section-group" *ngIf="!loading() && filteredViewers().length > 0">
+          <h3 class="section-subtitle">Viewers</h3>
+          <div class="user-list">
+            <article class="user-card" *ngFor="let user of filteredViewers(); trackBy: trackById">
+              <div class="user-info">
+                <button
+                  class="user-avatar-button"
+                  (click)="login(user)"
+                  [title]="'Ver tareas de ' + user.name"
+                  [style.background-color]="avatarColors().get(user._id)?.background"
+                  [style.color]="avatarColors().get(user._id)?.text">
+                  {{ getUserInitials(user) }}
+                </button>
+                <div>
+                  <h3>{{ user.name }}</h3>
+                  <p>{{ user.email }}</p>
+                  <div *ngIf="user.companies && user.companies.length > 0" class="user-company-list">
+                    <span *ngFor="let company of user.companies" class="company-badge">
+                      {{ company.name }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div class="user-meta" *ngIf="currentUser()?.role === 'admin'">
+                <span class="role-badge" [ngClass]="'role-' + user.role">{{ user.role }}</span>
+                <div class="card-actions">
+                  <button type="button" class="secondary" (click)="editUser(user)">Editar</button>
+                  <button type="button" class="secondary" (click)="openPermissionsModal(user)">Permisos</button>
+                  <button type="button" class="danger" (click)='deleteUser(user)'>Eliminar</button>                
+                </div>
+              </div>
+            </article>
+          </div>
         </div>
       </section>
     </section>
