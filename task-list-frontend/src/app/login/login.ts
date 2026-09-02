@@ -1,7 +1,9 @@
-import { Component, output, signal } from '@angular/core';
+import { Component, input, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
-const API_BASE = 'http://localhost:5000';
+const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+  ? 'http://localhost:5000'
+  : 'https://tu-backend-url.onrender.com';
 
 export interface User {
   _id: string;
@@ -28,6 +30,7 @@ export interface User {
 })
 export class LoginComponent {
   loginSuccess = output<User>();
+  expectedUserId = input<string | null>(null);
 
   protected readonly email = signal('');
   protected readonly password = signal('');
@@ -76,6 +79,9 @@ export class LoginComponent {
       }
 
       const user: User = await response.json();
+      if (this.expectedUserId() && user._id !== this.expectedUserId()) {
+        throw new Error('Esta URL corresponde a otro usuario. Inicia sesión con la cuenta indicada.');
+      }
       this.loginSuccess.emit(user);
     } catch (err) {
       this.error.set(String(err).replace('Error: ', ''));

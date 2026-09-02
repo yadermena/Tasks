@@ -54,6 +54,32 @@ async function seedRoles() {
 
 // --- RUTAS DE LA API ---
 
+// Vista pública de tareas activas para compartirlas con otros usuarios.
+app.get('/api/tasks/public/:userId', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+      return res.status(400).json({ message: 'ID de usuario inválido' });
+    }
+
+    const user = await User.findById(req.params.userId).select('name');
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    const tasks = await Task.find({
+      userId: req.params.userId,
+      isDeleted: { $ne: true }
+    })
+      .populate('userId', 'name')
+      .sort({ createdAt: -1 });
+
+    res.json({ userName: user.name, tasks });
+  } catch (error) {
+    console.error('Error al obtener las tareas públicas:', error);
+    res.status(500).json({ message: 'Error al obtener las tareas públicas' });
+  }
+});
+
 // 1. Obtener solo tareas activas (que no hayan sido anuladas/eliminadas)
 app.get('/api/tasks', async (req, res) => {
   try {

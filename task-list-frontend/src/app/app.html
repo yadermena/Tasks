@@ -1,6 +1,8 @@
 <!-- Login Component View if not authenticated -->
 <ng-container *ngIf="!currentUser()">
-  <app-login (loginSuccess)="handleLoginSuccess($event)"></app-login>
+  <app-login
+    [expectedUserId]="sharedLoginUserId()"
+    (loginSuccess)="handleLoginSuccess($event)"></app-login>
 </ng-container>
 
 <main *ngIf="currentUser()" class="app-shell" [class.sidebar-open]="isSidebarOpen()">
@@ -27,6 +29,8 @@
         <hr>
         <ul>
           <li *ngIf="user.role === 'admin' || (user.role === 'editor' && user.canEditProfile)"><button (click)="editUser(user)">Configurar mi Perfil</button></li>
+          <li><button (click)="copyShareUrl(user)">Compartir URL</button></li>
+          <li><button (click)="viewMyTasks(user)">Ver mis tareas</button></li>
           <li><button (click)="logout()">{{ realUser()?.role === 'admin' && currentUser()?._id !== realUser()?._id ? 'Volver al Panel' : 'Cerrar Sesión' }}</button></li>
         </ul>
       </div>

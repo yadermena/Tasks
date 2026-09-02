@@ -2,7 +2,9 @@ import { Component, computed, signal, Inject, PLATFORM_ID, OnDestroy } from '@an
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { LoginComponent } from './login/login';
 
-const API_BASE = 'http://localhost:5000';
+const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+  ? 'http://localhost:5000' 
+  : 'https://tu-backend-url.onrender.com'; // Aquí pondremos la URL del backend cuando la tengas
 
 type UserRole = 'admin' | 'editor' | 'viewer';
 
@@ -72,6 +74,7 @@ export class App implements OnDestroy {
   protected readonly previousAdminView = signal<'tasks' | 'users' | 'empresas' | 'configuraciones' | null>(null);
   protected readonly isProfileMenuOpen = signal(false);
   protected readonly selectedEmpresa = signal<Empresa | null>(null);
+  protected readonly sharedLoginUserId = signal<string | null>(null);
 
   // Signals for companies
   protected readonly empresas = signal<Empresa[]>([]);
@@ -317,14 +320,27 @@ export class App implements OnDestroy {
 
   constructor(@Inject(PLATFORM_ID) private platformId: object) {
     if (isPlatformBrowser(this.platformId)) {
-      // On initial load, check if a user was "logged in" from a previous session
-      const savedUserId = localStorage.getItem('currentUserId');
-      if (savedUserId) {
-        // If so, load that user's data and tasks.
-        void this.loginById(savedUserId);
-      } else {
+      // Check for loginAs parameter in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const loginAsId = urlParams.get('loginAs');
+      
+      if (loginAsId) {
+        this.sharedLoginUserId.set(loginAsId);
+        // Clear param from URL without refreshing
+        const newUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
         void this.loadUsers();
         void this.loadEmpresas();
+      } else {
+        // On initial load, check if a user was "logged in" from a previous session
+        const savedUserId = localStorage.getItem('currentUserId');
+        if (savedUserId) {
+          // If so, load that user's data and tasks.
+          void this.loginById(savedUserId);
+        } else {
+          void this.loadUsers();
+          void this.loadEmpresas();
+        }
       }
       document.addEventListener('click', this.onDocumentClick.bind(this));
     } else {
@@ -389,6 +405,7 @@ export class App implements OnDestroy {
   // --- User "Session" Management ---
 
   protected handleLoginSuccess(user: User) {
+    this.sharedLoginUserId.set(null);
     this.realUser.set(user);
     this._performLogin(user);
     void this.loadUsers();
@@ -412,6 +429,20 @@ export class App implements OnDestroy {
     this.isSidebarOpen.set(false);
   }
 
+
+  protected copyShareUrl(user: User) {
+    const url = `${window.location.origin}/?loginAs=${user._id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      alert('URL COPIADA AL PORTAPAPELES');
+    });
+    this.isProfileMenuOpen.set(false);
+  }
+
+  protected viewMyTasks(user: User) {
+    const url = `${window.location.origin}/tareas/${user._id}`;
+    window.open(url, '_blank');
+    this.isProfileMenuOpen.set(false);
+  }
 
   protected async loginById(userId: string) {
     this.loading.set(true);
@@ -1275,6 +1306,7 @@ export class App implements OnDestroy {
         return; // Don't proceed
       }
 
+      this.realUser.set(loggedInUser);
       this._performLogin(loggedInUser);
       this.closeLoginModal();
     } catch (err) {
