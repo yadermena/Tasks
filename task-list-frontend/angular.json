@@ -28,12 +28,12 @@
             "styles": [
               "src/styles.css"
             ],
-            "server": "src/main.server.ts",
-            "outputMode": "server",
+            "_comment_disabled_server": "src/main.server.ts",
+            "outputMode": "static",
             "security": {
               "allowedHosts": []
             },
-            "ssr": {
+            "_comment_disabled_ssr": {
               "entry": "src/server.ts"
             }
           },
