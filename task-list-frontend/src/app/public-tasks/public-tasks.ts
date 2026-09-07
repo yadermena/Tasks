@@ -4,7 +4,7 @@ import { ActivatedRoute } from '@angular/router';
 
 const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:5000'
-  : 'https://tu-backend-url.onrender.com';
+  : 'https://tasks-2x63.onrender.com';
 
 interface Task {
   _id: string;

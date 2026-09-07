@@ -4,7 +4,7 @@ import { LoginComponent } from './login/login';
 
 const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:5000' 
-  : 'https://tu-backend-url.onrender.com'; // Aquí pondremos la URL del backend cuando la tengas
+  : 'https://tasks-2x63.onrender.com';
 
 type UserRole = 'admin' | 'editor' | 'viewer';
 
