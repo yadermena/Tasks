@@ -21,6 +21,9 @@ interface User {
   canDelete?: boolean;
   canEditProfile?: boolean;
   canEditTask?: boolean;
+  canSetExecuting?: boolean;
+  canSetCompleted?: boolean;
+  canRestoreTask?: boolean;
   createdAt: string;
 }
 
@@ -948,6 +951,14 @@ export class App implements OnDestroy {
         this.error.set('No tienes permiso para cambiar el estado de la tarea.');
         return;
       }
+      if (status === 'ejecutando' && !user.canSetExecuting) {
+        this.error.set('No tienes permiso para cambiar la tarea a ejecución.');
+        return;
+      }
+      if (status === 'completada' && !user.canSetCompleted) {
+        this.error.set('No tienes permiso para completar la tarea.');
+        return;
+      }
     }
     try {
       const headers: HeadersInit = {
@@ -960,6 +971,8 @@ export class App implements OnDestroy {
       if (user.canEditTask) {
         headers['x-user-can-edit-task'] = 'true';
       }
+      if (user.canSetExecuting) headers['x-user-can-set-executing'] = 'true';
+      if (user.canSetCompleted) headers['x-user-can-set-completed'] = 'true';
 
       const response = await fetch(`${API_BASE}/api/tasks/${task._id}/status`, {
         method: 'PUT',
@@ -1036,15 +1049,16 @@ export class App implements OnDestroy {
 
     try {
       const user = this.currentUser();
-      if (!user || user.role !== 'admin') {
+      if (!user || (user.role !== 'admin' && !user.canRestoreTask)) {
         return;
       }
 
       const headers: HeadersInit = {
         'x-user-id': user._id,
-        'x-user-role': 'admin',
+        'x-user-role': user.role,
         'Content-Type': 'application/json', // Aseguramos que el servidor sepa que esperamos JSON
       };
+      if (user.canRestoreTask) headers['x-user-can-restore'] = 'true';
 
       const response = await fetch(`${API_BASE}/api/tasks/${taskToRestore._id}/restore`, {
         method: 'POST',
@@ -1087,7 +1101,11 @@ export class App implements OnDestroy {
     try {
       const response = await fetch(`${API_BASE}/api/users/${user._id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': this.currentUser()?._id ?? '',
+          'x-user-role': this.currentUser()?.role ?? ''
+        },
         body: JSON.stringify({ canDelete })
       });
 
@@ -1120,7 +1138,11 @@ export class App implements OnDestroy {
     try {
       const response = await fetch(`${API_BASE}/api/users/${user._id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': this.currentUser()?._id ?? '',
+          'x-user-role': this.currentUser()?.role ?? ''
+        },
         body: JSON.stringify({ canEditProfile })
       });
 
@@ -1151,7 +1173,11 @@ export class App implements OnDestroy {
     try {
       const response = await fetch(`${API_BASE}/api/users/${user._id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': this.currentUser()?._id ?? '',
+          'x-user-role': this.currentUser()?.role ?? ''
+        },
         body: JSON.stringify({ canEditTask })
       });
 
@@ -1171,6 +1197,30 @@ export class App implements OnDestroy {
       if (this.currentUser()?._id === updatedUser._id) {
         this.currentUser.set(updatedUser);
       }
+    } catch (err) {
+      this.error.set(String(err));
+      this.closePermissionsModal();
+    }
+  }
+
+  protected async toggleTaskPermission(user: User, permission: 'canSetExecuting' | 'canSetCompleted' | 'canRestoreTask') {
+    const value = !user[permission];
+    try {
+      const response = await fetch(`${API_BASE}/api/users/${user._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': this.currentUser()?._id ?? '',
+          'x-user-role': this.currentUser()?.role ?? ''
+        },
+        body: JSON.stringify({ [permission]: value })
+      });
+
+      if (!response.ok) throw new Error('No se pudo actualizar el permiso');
+      const updatedUser = await response.json();
+      this.users.update(current => current.map(item => item._id === updatedUser._id ? updatedUser : item));
+      this.permissionsModalUser.set(updatedUser);
+      if (this.currentUser()?._id === updatedUser._id) this.currentUser.set(updatedUser);
     } catch (err) {
       this.error.set(String(err));
       this.closePermissionsModal();

@@ -257,10 +257,13 @@
           <ng-container *ngIf="editingTask()?._id !== task._id; else editTaskForm">
             <div class="task-details">
               <h3>{{ task.name }}</h3>
-              <p>
-                Estado: {{ task.status }}
-                <span *ngIf="task.isDeleted" class="deleted-indicator">(Eliminada)</span>
-              </p>
+              <div class="status-container">
+                <span class="status-dot" [ngClass]="'status-' + task.status"></span>
+                <p>
+                  Estado: <span class="status-text">{{ task.status }}</span>
+                  <span *ngIf="task.isDeleted" class="deleted-indicator">(Eliminada)</span>
+                </p>
+              </div>
               <p *ngIf="currentUser()?.role === 'admin' && task.userId" class="task-user">
                 Usuario: {{ task.userId.name }}
               </p>
@@ -724,6 +727,24 @@
           [ngClass]="!!user.canEditTask ? 'danger' : 'success'"
         >
           {{ !!user.canEditTask ? 'Quitar Permiso' : 'Dar Permiso' }}
+        </button>
+      </div>
+      <div class="permission-toggle">
+        <label for="can-set-executing">Permiso para Cambiar a En Ejecución</label>
+        <button type="button" (click)="toggleTaskPermission(user, 'canSetExecuting')" [ngClass]="!!user.canSetExecuting ? 'danger' : 'success'">
+          {{ !!user.canSetExecuting ? 'Quitar Permiso' : 'Dar Permiso' }}
+        </button>
+      </div>
+      <div class="permission-toggle">
+        <label for="can-set-completed">Permiso para Cambiar a Completada</label>
+        <button type="button" (click)="toggleTaskPermission(user, 'canSetCompleted')" [ngClass]="!!user.canSetCompleted ? 'danger' : 'success'">
+          {{ !!user.canSetCompleted ? 'Quitar Permiso' : 'Dar Permiso' }}
+        </button>
+      </div>
+      <div class="permission-toggle">
+        <label for="can-restore-task">Permiso para Restaurar o Regresar al Estado Inicial</label>
+        <button type="button" (click)="toggleTaskPermission(user, 'canRestoreTask')" [ngClass]="!!user.canRestoreTask ? 'danger' : 'success'">
+          {{ !!user.canRestoreTask ? 'Quitar Permiso' : 'Dar Permiso' }}
         </button>
       </div>
       <div class="modal-actions">

@@ -5,6 +5,9 @@ const permissionSchema = new mongoose.Schema({
   canDelete: { type: Boolean, default: false },
   canEditProfile: { type: Boolean, default: false },
   canEditTask: { type: Boolean, default: false },
+  canSetExecuting: { type: Boolean, default: false },
+  canSetCompleted: { type: Boolean, default: false },
+  canRestoreTask: { type: Boolean, default: false },
   // Aquí se pueden añadir más permisos en el futuro
 }, { _id: false });
 

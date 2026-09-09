@@ -36,6 +36,18 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  canSetExecuting: {
+    type: Boolean,
+    default: false
+  },
+  canSetCompleted: {
+    type: Boolean,
+    default: false
+  },
+  canRestoreTask: {
+    type: Boolean,
+    default: false
+  },
   companies: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Empresa'

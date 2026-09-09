@@ -37,9 +37,9 @@ mongoose.connect(MONGO_URI)
 async function seedRoles() {
   try {
     const roles = [
-      { name: 'admin', permissions: { canDelete: true, canEditProfile: true, canEditTask: true } },
-      { name: 'editor', permissions: { canDelete: false, canEditProfile: true, canEditTask: true } },
-      { name: 'viewer', permissions: { canDelete: false, canEditProfile: false, canEditTask: false } }
+      { name: 'admin', permissions: { canDelete: true, canEditProfile: true, canEditTask: true, canSetExecuting: true, canSetCompleted: true, canRestoreTask: true } },
+      { name: 'editor', permissions: { canDelete: false, canEditProfile: true, canEditTask: true, canSetExecuting: true, canSetCompleted: false, canRestoreTask: false } },
+      { name: 'viewer', permissions: { canDelete: false, canEditProfile: false, canEditTask: false, canSetExecuting: false, canSetCompleted: false, canRestoreTask: false } }
     ];
 
     for (const roleData of roles) {
@@ -158,8 +158,15 @@ app.put('/api/tasks/:id/status', async (req, res) => {
       }
     }
 
-    if (task.status === 'completada') {
+    if (task.status === 'completada' && userRole !== 'admin') {
       return res.status(403).json({ message: 'Las tareas completadas no se pueden modificar.' });
+    }
+
+    if (userRole !== 'admin' && status === 'ejecutando' && req.headers['x-user-can-set-executing'] !== 'true') {
+      return res.status(403).json({ message: 'No tiene permiso para cambiar la tarea a ejecución.' });
+    }
+    if (userRole !== 'admin' && status === 'completada' && req.headers['x-user-can-set-completed'] !== 'true') {
+      return res.status(403).json({ message: 'No tiene permiso para completar la tarea.' });
     }
 
     if (!['completada', 'ejecutando', 'acumulada'].includes(status)) {
@@ -209,7 +216,7 @@ app.put('/api/tasks/:id', async (req, res) => {
       return res.status(404).json({ message: 'Tarea no encontrada' });
     }
 
-    if (task.status === 'completada') {
+    if (task.status === 'completada' && userRole !== 'admin') {
       return res.status(403).json({ message: 'Las tareas completadas no se pueden editar.' });
     }
 
@@ -282,8 +289,9 @@ app.delete('/api/tasks/:id', async (req, res) => {
 app.post('/api/tasks/:id/restore', async (req, res) => {
   try {
     const userRole = req.headers['x-user-role'];
-    if (userRole !== 'admin') {
-      return res.status(403).json({ message: 'Acción no permitida. Solo los administradores pueden restaurar tareas.' });
+    const userCanRestore = req.headers['x-user-can-restore'] === 'true';
+    if (userRole !== 'admin' && !userCanRestore) {
+      return res.status(403).json({ message: 'No tiene permiso para restaurar tareas.' });
     }
 
     // Validar que el ID sea un ObjectId válido de Mongoose
@@ -381,7 +389,7 @@ app.post('/api/users', async (req, res) => {
 // 7. Actualizar usuario
 app.put('/api/users/:id', async (req, res) => {
   try {
-    const { name, email, role, password, companyIds, canDelete, canEditProfile, canEditTask } = req.body;
+    const { name, email, role, password, companyIds, canDelete, canEditProfile, canEditTask, canSetExecuting, canSetCompleted, canRestoreTask } = req.body;
     const updateData = {};
 
     const userId = req.params.id;
@@ -392,6 +400,11 @@ app.put('/api/users/:id', async (req, res) => {
     }
 
     const requestorId = req.headers['x-user-id'];
+    const requestorRole = req.headers['x-user-role'];
+    const permissionFields = { canDelete, canEditProfile, canEditTask, canSetExecuting, canSetCompleted, canRestoreTask };
+    if (Object.values(permissionFields).some(value => value !== undefined) && requestorRole !== 'admin') {
+      return res.status(403).json({ message: 'Solo los administradores pueden administrar permisos.' });
+    }
     if (requestorId === req.params.id && currentUser.role !== 'admin' && !currentUser.canEditProfile) {
       return res.status(403).json({ message: 'No tiene permiso para editar su perfil.' });
     }
@@ -429,6 +442,9 @@ app.put('/api/users/:id', async (req, res) => {
     if (canDelete !== undefined) updateData.canDelete = canDelete;
     if (canEditProfile !== undefined) updateData.canEditProfile = canEditProfile;
     if (canEditTask !== undefined) updateData.canEditTask = canEditTask;
+    if (canSetExecuting !== undefined) updateData.canSetExecuting = canSetExecuting;
+    if (canSetCompleted !== undefined) updateData.canSetCompleted = canSetCompleted;
+    if (canRestoreTask !== undefined) updateData.canRestoreTask = canRestoreTask;
 
     // If a new password is provided, hash it.
     if (password && password.trim() !== '') {
