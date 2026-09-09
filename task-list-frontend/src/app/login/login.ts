@@ -17,7 +17,6 @@ export interface User {
   canDelete?: boolean;
   canEditProfile?: boolean;
   canEditTask?: boolean;
-  canAccumulateTask?: boolean;
   createdAt: string;
 }
 

@@ -37,9 +37,9 @@ mongoose.connect(MONGO_URI)
 async function seedRoles() {
   try {
     const roles = [
-      { name: 'admin', permissions: { canDelete: true, canEditProfile: true, canEditTask: true, canAccumulateTask: true } },
-      { name: 'editor', permissions: { canDelete: false, canEditProfile: true, canEditTask: true, canAccumulateTask: true } },
-      { name: 'viewer', permissions: { canDelete: false, canEditProfile: false, canEditTask: false, canAccumulateTask: false } }
+      { name: 'admin', permissions: { canDelete: true, canEditProfile: true, canEditTask: true } },
+      { name: 'editor', permissions: { canDelete: false, canEditProfile: true, canEditTask: true } },
+      { name: 'viewer', permissions: { canDelete: false, canEditProfile: false, canEditTask: false } }
     ];
 
     for (const roleData of roles) {
@@ -145,7 +145,6 @@ app.put('/api/tasks/:id/status', async (req, res) => {
     const userId = req.headers['x-user-id'];
     const userRole = req.headers['x-user-role'];
     const userCanEdit = req.headers['x-user-can-edit-task'] === 'true';
-    const userCanAccumulate = req.headers['x-user-can-accumulate-task'] === 'true';
     const { status } = req.body;
 
     const task = await Task.findById(req.params.id);
@@ -154,19 +153,13 @@ app.put('/api/tasks/:id/status', async (req, res) => {
     }
 
     if (userRole !== 'admin') {
-      // A user with `canEditTask` can perform any status change.
-      // If they don't have it, we check for the more specific `canAccumulateTask`.
       if (!userCanEdit) {
-        // If they don't have the general edit permission, they cannot change completed tasks at all.
-        if (task.status === 'completada') {
-          return res.status(403).json({ message: 'No tiene permiso para cambiar el estado de una tarea completada.' });
-        }
-        // Without the general permission, they can only accumulate, if they have that specific permission.
-        if (status !== 'acumulada' || !userCanAccumulate) {
-          const message = status === 'acumulada' ? 'No tiene permiso para acumular esta tarea.' : 'No tiene permiso para editar el estado de la tarea.';
-          return res.status(403).json({ message });
-        }
+        return res.status(403).json({ message: 'No tiene permiso para editar el estado de la tarea.' });
       }
+    }
+
+    if (task.status === 'completada') {
+      return res.status(403).json({ message: 'Las tareas completadas no se pueden modificar.' });
     }
 
     if (!['completada', 'ejecutando', 'acumulada'].includes(status)) {
@@ -189,24 +182,6 @@ app.put('/api/tasks/:id/status', async (req, res) => {
 
     if (!updatedTask) {
       return res.status(404).json({ message: 'Tarea no encontrada' });
-    }
-
-    // If a task was completed, check if we need to revoke permissions for the task owner.
-    // This logic applies regardless of who completed the task (the user or an admin).
-    if (isCompleted) {
-      const taskOwner = await User.findById(updatedTask.userId).select('role').lean();
-      // Only revoke permissions for non-admin users.
-      if (taskOwner && taskOwner.role !== 'admin') {
-        const incompleteTasksCount = await Task.countDocuments({
-          userId: updatedTask.userId,
-          status: { $ne: 'completada' },
-          isDeleted: { $ne: true }
-        });
-
-        if (incompleteTasksCount === 0) {
-          await User.findByIdAndUpdate(updatedTask.userId, { canEditTask: false, canAccumulateTask: false });
-        }
-      }
     }
 
     res.json(updatedTask);
@@ -234,9 +209,8 @@ app.put('/api/tasks/:id', async (req, res) => {
       return res.status(404).json({ message: 'Tarea no encontrada' });
     }
 
-    // If the task is completed, only admins or users with canEditTask can edit it.
-    if (task.status === 'completada' && userRole !== 'admin' && !userCanEdit) {
-      return res.status(403).json({ message: 'No se pueden editar los detalles de una tarea completada.' });
+    if (task.status === 'completada') {
+      return res.status(403).json({ message: 'Las tareas completadas no se pueden editar.' });
     }
 
     if (name !== undefined && (!name || !name.trim())) {
@@ -407,7 +381,7 @@ app.post('/api/users', async (req, res) => {
 // 7. Actualizar usuario
 app.put('/api/users/:id', async (req, res) => {
   try {
-    const { name, email, role, password, companyIds, canDelete, canEditProfile, canEditTask, canAccumulateTask } = req.body;
+    const { name, email, role, password, companyIds, canDelete, canEditProfile, canEditTask } = req.body;
     const updateData = {};
 
     const userId = req.params.id;
@@ -415,6 +389,11 @@ app.put('/api/users/:id', async (req, res) => {
 
     if (!currentUser) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    const requestorId = req.headers['x-user-id'];
+    if (requestorId === req.params.id && currentUser.role !== 'admin' && !currentUser.canEditProfile) {
+      return res.status(403).json({ message: 'No tiene permiso para editar su perfil.' });
     }
 
     // Explicitly build the update object to control which fields can be updated
@@ -450,7 +429,6 @@ app.put('/api/users/:id', async (req, res) => {
     if (canDelete !== undefined) updateData.canDelete = canDelete;
     if (canEditProfile !== undefined) updateData.canEditProfile = canEditProfile;
     if (canEditTask !== undefined) updateData.canEditTask = canEditTask;
-    if (canAccumulateTask !== undefined) updateData.canAccumulateTask = canAccumulateTask;
 
     // If a new password is provided, hash it.
     if (password && password.trim() !== '') {

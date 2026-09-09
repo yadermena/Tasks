@@ -275,7 +275,7 @@
               <button *ngIf="currentUser()?.role === 'admin' && task.isDeleted" type="button" (click)="restoreTask(task)">Restaurar</button>
               <!-- Delete button for active tasks, requires admin role or canDelete permission-->
               <button *ngIf="!task.isDeleted && (user.role === 'admin' || user.canDelete)" type="button" class="danger" (click)="deleteTask(task)">Eliminar</button>
-              <button *ngIf="!task.isDeleted && (user.role === 'admin' || user.canEditTask)" type="button" class="secondary" (click)="editTask(task)">Editar</button>
+              <button *ngIf="!task.isDeleted && (user.role === 'admin' || user.canEditTask)" type="button" class="secondary" (click)="editTask(task)" [disabled]="task.status === 'completada'">Editar</button>
             </div>
           </ng-container>
 
@@ -722,20 +722,8 @@
           type="button"
           (click)="toggleTaskEditPermission(user)"
           [ngClass]="!!user.canEditTask ? 'danger' : 'success'"
-          [disabled]="!user.canEditTask && !canGrantTaskPermissions()"
         >
           {{ !!user.canEditTask ? 'Quitar Permiso' : 'Dar Permiso' }}
-        </button>
-      </div>
-      <div class="permission-toggle">
-        <label for="can-accumulate-task">Permiso para Acumular Tareas</label>
-        <button
-          type="button"
-          (click)="toggleAccumulatePermission(user)"
-          [ngClass]="!!user.canAccumulateTask ? 'danger' : 'success'"
-          [disabled]="!user.canAccumulateTask && !canGrantTaskPermissions()"
-        >
-          {{ !!user.canAccumulateTask ? 'Quitar Permiso' : 'Dar Permiso' }}
         </button>
       </div>
       <div class="modal-actions">

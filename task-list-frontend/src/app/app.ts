@@ -21,7 +21,6 @@ interface User {
   canDelete?: boolean;
   canEditProfile?: boolean;
   canEditTask?: boolean;
-  canAccumulateTask?: boolean;
   createdAt: string;
 }
 
@@ -187,29 +186,6 @@ export class App implements OnDestroy {
     const user = this.currentUser();
     if (!user) return '';
     return this.getUserInitials(user);
-  });
-
-  protected readonly canGrantTaskPermissions = computed(() => {
-    const user = this.permissionsModalUser();
-    if (!user) {
-      // If no user is in the modal, this doesn't apply.
-      return false;
-    }
-    // When an admin is logged in, this.tasks() contains all tasks.
-    const allTasks = this.tasks();
-    // Filter for this specific user's non-deleted tasks.
-    const userTasks = allTasks.filter(t => t.userId?._id === user._id && !t.isDeleted);
-    // If there are no tasks, can't grant permission.
-    if (userTasks.length === 0) {
-      return false;
-    }
-    // If all tasks are completed, can't grant permission.
-    const allTasksCompleted = userTasks.every(t => t.status === 'completada');
-    if (allTasksCompleted) {
-      return false;
-    }
-    // Otherwise, it's ok to grant permission.
-    return true;
   });
 
   protected readonly filteredUsers = computed(() => {
@@ -533,9 +509,13 @@ export class App implements OnDestroy {
     try {
       const method = this.editingId() ? 'PUT' : 'POST';
       const url = this.editingId() ? `${API_BASE}/api/users/${this.editingId()}` : `${API_BASE}/api/users`;
+      const currentUser = this.currentUser();
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(currentUser ? { 'x-user-id': currentUser._id, 'x-user-role': currentUser.role } : {})
+        },
         body: JSON.stringify({ name: name.trim(), email: email.trim(), role, password, companyIds })
       });
 
@@ -574,6 +554,11 @@ export class App implements OnDestroy {
   protected editUser(user: User) {
     // Check if this action is coming from the profile menu (editing the current user)
     const isEditingCurrentUser = this.currentUser()?._id === user._id;
+
+    if (isEditingCurrentUser && user.role !== 'admin' && !user.canEditProfile) {
+      this.error.set('No tienes permiso para editar tu perfil.');
+      return;
+    }
 
     if (isEditingCurrentUser) {
       this.isProfileMenuOpen.set(false);
@@ -917,6 +902,11 @@ export class App implements OnDestroy {
     const user = this.currentUser();
     if (!user) return;
 
+    if (task.status === 'completada') {
+      this.error.set('Las tareas completadas no se pueden editar.');
+      return;
+    }
+
     // Si el usuario no es administrador:
     if (user.role !== 'admin') {
       // Para editar cualquier tarea, necesita el permiso `canEditTask`.
@@ -947,26 +937,16 @@ export class App implements OnDestroy {
     const user = this.currentUser();
     if (!user) return; // No debería ocurrir si la UI está bien guardada
 
+    if (task.status === 'completada') {
+      this.error.set('Las tareas completadas no se pueden modificar.');
+      return;
+    }
+
     // Si el usuario no es administrador:
     if (user.role !== 'admin') {
-      // A user with `canEditTask` can perform any status change.
-      if (user.canEditTask) {
-        // This user has full edit permissions, so no further checks are needed.
-      } else {
-        // If they don't have the general edit permission, they cannot change completed tasks at all.
-        if (task.status === 'completada') {
-          this.error.set('Solo un administrador o un usuario con permiso de edición puede cambiar el estado de una tarea completada.');
-          return;
-        }
-      }
-      // If they don't have it, we check for the more specific `canAccumulateTask`.
       if (!user.canEditTask) {
-        // Without the general permission, they can only accumulate, if they have that specific permission.
-        if (status !== 'acumulada' || !user.canAccumulateTask) {
-          const message = status === 'acumulada' ? 'No tienes permiso para acumular tareas.' : 'No tienes permiso para cambiar el estado de la tarea.';
-          this.error.set(message);
-          return;
-        }
+        this.error.set('No tienes permiso para cambiar el estado de la tarea.');
+        return;
       }
     }
     try {
@@ -979,9 +959,6 @@ export class App implements OnDestroy {
       }
       if (user.canEditTask) {
         headers['x-user-can-edit-task'] = 'true';
-      }
-      if (user.canAccumulateTask) {
-        headers['x-user-can-accumulate-task'] = 'true';
       }
 
       const response = await fetch(`${API_BASE}/api/tasks/${task._id}/status`, {
@@ -1004,45 +981,26 @@ export class App implements OnDestroy {
         current.map(t => t._id === updatedTask._id ? updatedTask : t)
       );
 
-      // If a task was completed, a user's permissions might have been revoked on the backend.
-      // We need to check if all of that user's tasks are now complete and update the local state
-      // to keep the UI consistent, especially the permissions modal.
-      if (status === 'completada') {
-        const taskOwnerId = updatedTask.userId._id;
-        const allTasks = this.tasks();
-        const userTasks = allTasks.filter(t => t.userId?._id === taskOwnerId && !t.isDeleted);
-        const allTasksCompleted = userTasks.every(t => t.status === 'completada');
-
-        if (allTasksCompleted) {
-          // Update the user in the main `users` list to keep the admin panel consistent.
-          this.users.update(allUsers => allUsers.map(u =>
-            u._id === taskOwnerId ? { ...u, canEditTask: false, canAccumulateTask: false } : u
-          ));
-          // Also update the user in the permissions modal if it's open for this user.
-          if (this.permissionsModalUser()?._id === taskOwnerId) {
-            this.permissionsModalUser.update(current => current ? { ...current, canEditTask: false, canAccumulateTask: false } : null);
-          }
-          // If the affected user is the currently logged-in user, update their signal too.
-          if (this.currentUser()?._id === taskOwnerId) {
-            this.currentUser.update(current => current ? { ...current, canEditTask: false, canAccumulateTask: false } : null);
-          }
-        }
-      }
     } catch (err) {
       this.error.set(String(err));
     }
   }
 
   protected async deleteTask(taskToDelete: Task) {
+    const user = this.currentUser();
+    if (!user) return;
+
+    if (user.role !== 'admin' && !user.canDelete) {
+      this.error.set('No tienes permiso para eliminar tareas.');
+      return;
+    }
+
     if (!confirm(`¿Estás seguro de que quieres eliminar la tarea "${taskToDelete.name}"?`)) {
       return;
     }
 
     try {
-      const user = this.currentUser();
-      if (!user) return;
-
-    const headers: HeadersInit = { 'x-user-id': user._id };
+      const headers: HeadersInit = { 'x-user-id': user._id };
       if (user.role === 'admin') {
         headers['x-user-role'] = 'admin';
     }
@@ -1189,53 +1147,12 @@ export class App implements OnDestroy {
   }
 
   protected async toggleTaskEditPermission(user: User) {
-    // If we are trying to GRANT the permission, first check if it's allowed.
-    if (!user.canEditTask && !this.canGrantTaskPermissions()) {
-      this.error.set('No se puede otorgar permiso: el usuario no tiene tareas activas o todas están completas.');
-      return;
-    }
     const canEditTask = !user.canEditTask;
     try {
       const response = await fetch(`${API_BASE}/api/users/${user._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ canEditTask })
-      });
-
-      if (!response.ok) {
-        throw new Error('No se pudo actualizar el permiso');
-      }
-
-      const updatedUser = await response.json();
-      // Update user in the main list
-      this.users.update(current =>
-        current.map(u => u._id === updatedUser._id ? updatedUser : u)
-      );
-      // Also update the user in the modal to reflect the change
-      this.permissionsModalUser.set(updatedUser);
-
-      // If the currently logged-in user is the one being edited, update their state too.
-      if (this.currentUser()?._id === updatedUser._id) {
-        this.currentUser.set(updatedUser);
-      }
-    } catch (err) {
-      this.error.set(String(err));
-      this.closePermissionsModal();
-    }
-  }
-
-  protected async toggleAccumulatePermission(user: User) {
-    // If we are trying to GRANT the permission, first check if it's allowed.
-    if (!user.canAccumulateTask && !this.canGrantTaskPermissions()) {
-      this.error.set('No se puede otorgar permiso: el usuario no tiene tareas activas o todas están completas.');
-      return;
-    }
-    const canAccumulateTask = !user.canAccumulateTask;
-    try {
-      const response = await fetch(`${API_BASE}/api/users/${user._id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ canAccumulateTask })
       });
 
       if (!response.ok) {
