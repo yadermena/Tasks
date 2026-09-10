@@ -132,6 +132,8 @@
 
 
 .main-content {
+  width: 100%;
+  min-width: 0;
   transition: margin-left 0.3s ease-in-out;
 }
 
@@ -202,12 +204,16 @@
   max-width: 1100px;
   margin: 0 auto;
   padding: 4.5rem 1rem 2rem 4.5rem;
+  box-sizing: border-box;
+  min-width: 0;
   transition: margin-left 0.3s ease-in-out;
 }
 
 .dashboard-panel {
   width: 100%;
   max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   background: #ffffff;
   border-radius: 1.25rem;
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
@@ -244,6 +250,8 @@
 .users-section {
   width: 100%;
   max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   border: 1px solid #e2e8f0;
   border-radius: 1rem;
   padding: 1rem;
@@ -344,6 +352,7 @@ button:hover {
   gap: 1rem;
   margin-bottom: 1rem;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .users-toolbar input {
@@ -355,6 +364,7 @@ button:hover {
   gap: 1rem;
   flex-grow: 1;
   min-width: 0;
+  max-width: 100%;
 }
 
 .user-task-filter {
@@ -443,6 +453,7 @@ button:hover {
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  box-sizing: border-box;
 }
 
 .user-card h3 {
@@ -531,39 +542,101 @@ button:hover {
 }
 
 @media (max-width: 720px) {
+  .app-shell.sidebar-open .main-content {
+    margin-left: 0;
+  }
+
   .app-shell {
+    width: 100%;
+    max-width: none;
     padding: 4.5rem 0.5rem 1.5rem;
   }
 
   .dashboard-panel {
+    width: 100%;
+    max-width: none;
     padding: 0.75rem;
     border-radius: 1rem;
   }
 
+  .dashboard-header,
+  .users-toolbar,
+  .task-filters,
+  .form-actions {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .dashboard-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .task-filters {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .user-task-filter,
+  .user-task-filter .dropdown-toggle,
+  .user-task-filter .dropdown-menu {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .task-summary-panel,
+  .task-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
   .user-card {
-    padding: 0.75rem;
+    padding: 1rem;
+    flex-direction: column;
+    align-items: stretch;
+    overflow: hidden; /* Evita desbordamiento */
+  }
+
+  .user-info {
+    width: 100%;
+    display: flex;
+    flex-direction: row; /* Mantiene avatar al lado del texto */
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .user-meta {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 1rem;
+  }
+
+  .role-badge {
+    align-self: flex-start;
   }
 
   .card-actions {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     width: 100%;
     gap: 0.5rem;
-    margin-top: 0.5rem;
   }
 
-  .card-actions select,
-  .card-actions button {
-    flex: 1 1 auto;
-    min-width: 100px;
-    padding: 0.75rem 0.5rem;
+  .card-actions button,
+  .card-actions select {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0.8rem 0.5rem;
     font-size: 0.85rem;
-    height: auto;
+    text-overflow: ellipsis;
+    overflow: hidden;
     white-space: nowrap;
-    text-align: center;
-    justify-content: center;
-    display: flex;
-    align-items: center;
   }
 
   .card-actions select {
