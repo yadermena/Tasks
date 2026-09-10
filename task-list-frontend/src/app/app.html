@@ -465,8 +465,39 @@
         <div class="status-bar" *ngIf="loading()">Cargando usuarios...</div>
         <div class="status-bar error" *ngIf="error()">{{ error() }}</div>
 
-        <div class="empty-state" *ngIf="!loading() && filteredUsers().length === 0">
+        <div class="empty-state" *ngIf="!loading() && filteredUsers().length === 0 && !(userFilterStatus() === 'admin' && filteredAdminUsers().length > 0)">
           <p>No hay usuarios para mostrar.</p>
+        </div>
+
+        <!-- Seccion Administradores -->
+        <div class="users-section-group" *ngIf="!loading() && userFilterStatus() === 'admin' && filteredAdminUsers().length > 0">
+          <h3 class="section-subtitle">Administradores</h3>
+          <div class="user-list">
+            <article class="user-card" *ngFor="let user of filteredAdminUsers(); trackBy: trackById">
+              <div class="user-info">
+                <button
+                  class="user-avatar-button"
+                  (click)="login(user)"
+                  [title]="'Ver tareas de ' + user.name"
+                  [style.background-color]="avatarColors().get(user._id)?.background"
+                  [style.color]="avatarColors().get(user._id)?.text">
+                  {{ getUserInitials(user) }}
+                </button>
+                <div>
+                  <h3>{{ user.name }}</h3>
+                  <p>{{ user.email }}</p>
+                </div>
+              </div>
+              <div class="user-meta" *ngIf="currentUser()?.role === 'admin'">
+                <span class="role-badge" [ngClass]="'role-' + user.role">{{ user.role }}</span>
+                <div class="card-actions">
+                  <button type="button" class="secondary" (click)="editUser(user)">Editar</button>
+                  <button type="button" class="secondary" (click)="openPermissionsModal(user)">Permisos</button>
+                  <button type="button" class="danger" (click)="deleteUser(user)">Eliminar</button>
+                </div>
+              </div>
+            </article>
+          </div>
         </div>
 
         <!-- Seccion Editores -->
