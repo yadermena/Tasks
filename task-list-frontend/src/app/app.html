@@ -274,8 +274,14 @@
                 <option value="acumulada">Acumulada</option>
                 <option value="completada">Completada</option>
               </select>
-              <!-- Admin-only button for deleted tasks -->
-              <button *ngIf="currentUser()?.role === 'admin' && task.isDeleted" type="button" (click)="restoreTask(task)">Restaurar</button>
+              <!-- Restaurar devuelve la tarea al estado inicial y requiere permiso administrativo. -->
+              <button
+                *ngIf="user.role === 'admin' || user.canRestoreTask"
+                type="button"
+                class="secondary"
+                (click)="restoreTask(task)">
+                Restaurar
+              </button>
               <!-- Delete button for active tasks, requires admin role or canDelete permission-->
               <button *ngIf="!task.isDeleted && (user.role === 'admin' || user.canDelete)" type="button" class="danger" (click)="deleteTask(task)">Eliminar</button>
               <button *ngIf="!task.isDeleted && (user.role === 'admin' || user.canEditTask)" type="button" class="secondary" (click)="editTask(task)" [disabled]="task.status === 'completada'">Editar</button>
