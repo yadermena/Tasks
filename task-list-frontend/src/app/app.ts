@@ -195,7 +195,7 @@ export class App implements OnDestroy {
     const term = this.query().trim().toLowerCase();
     const filter = this.userFilterStatus();
     
-    let baseUsers = this.users().filter(user => user.role !== 'admin');
+    let baseUsers = this.users();
 
     if (filter === 'editor') {
       baseUsers = baseUsers.filter(u => u.role === 'editor');
@@ -204,7 +204,7 @@ export class App implements OnDestroy {
     }
     
     if (filter === 'admin') {
-      return []; // In the main user list, we don't show admins if filtering for admins only (they are in their own section/view)
+      return [];
     }
     
     if (!term) {
@@ -791,6 +791,12 @@ export class App implements OnDestroy {
 
   protected updateTaskQuery(value: string) {
     this.taskQuery.set(value);
+  }
+
+  protected getUserCompanies(userId: string): string {
+    const user = this.users().find(u => u._id === userId);
+    if (!user || !user.companies || user.companies.length === 0) return '';
+    return user.companies.map(c => c.name).join(', ');
   }
 
   protected async loadTasks() {

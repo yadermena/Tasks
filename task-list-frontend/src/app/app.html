@@ -261,6 +261,9 @@
                 <span class="status-dot" [ngClass]="'status-' + task.status"></span>
                 <p>
                   Estado: <span class="status-text">{{ task.status }}</span>
+                  <span class="task-company-badge" *ngIf="task.userId && getUserCompanies(task.userId._id)">
+                    | {{ getUserCompanies(task.userId._id) }}
+                  </span>
                   <span *ngIf="task.isDeleted" class="deleted-indicator">(Eliminada)</span>
                 </p>
               </div>
@@ -476,7 +479,7 @@
         </div>
 
         <!-- Seccion Administradores -->
-        <div class="users-section-group" *ngIf="!loading() && userFilterStatus() === 'admin' && filteredAdminUsers().length > 0">
+        <div class="users-section-group" *ngIf="!loading() && (userFilterStatus() === 'admin' || userFilterStatus() === 'all') && filteredAdminUsers().length > 0">
           <h3 class="section-subtitle">Administradores</h3>
           <div class="user-list">
             <article class="user-card" *ngFor="let user of filteredAdminUsers(); trackBy: trackById">
@@ -492,6 +495,11 @@
                 <div>
                   <h3>{{ user.name }}</h3>
                   <p>{{ user.email }}</p>
+                  <div *ngIf="user.companies && user.companies.length > 0" class="user-company-list">
+                    <span *ngFor="let company of user.companies" class="company-badge">
+                      {{ company.name }}
+                    </span>
+                  </div>
                 </div>
               </div>
               <div class="user-meta" *ngIf="currentUser()?.role === 'admin'">

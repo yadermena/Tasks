@@ -521,6 +521,12 @@ button:hover {
   flex-wrap: wrap;
 }
 
+.task-company-badge {
+  color: #64748b;
+  font-weight: 600;
+  margin-left: 0.5rem;
+}
+
 .status-container {
   display: flex;
   align-items: center;
