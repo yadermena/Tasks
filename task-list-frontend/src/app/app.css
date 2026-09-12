@@ -474,6 +474,29 @@ button:hover {
   margin-top: 0.5rem;
 }
 
+.task-timer {
+  display: inline-flex;
+  margin-top: 0.5rem !important;
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.5rem;
+  background: #ecfdf5;
+  color: #047857 !important;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.task-timer.expired {
+  background: #fef2f2;
+  color: #b91c1c !important;
+}
+
+.user-timer-summary {
+  margin-top: 0.45rem !important;
+  color: #047857 !important;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
 .user-company {
   font-size: 0.8rem;
   color: #475569; /* slate-600 */

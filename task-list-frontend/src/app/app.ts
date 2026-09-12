@@ -42,6 +42,8 @@ interface Task {
   completed: boolean;
   isDeleted: boolean;
   createdAt: string;
+  timerMinutes?: number | null;
+  timerEndsAt?: string | null;
   userId: {
     _id: string;
     name: string;
@@ -112,7 +114,7 @@ export class App implements OnDestroy {
   protected readonly runningTasksCount = computed(() => this.tasksForSummary().filter(t => t.status === 'ejecutando' && !t.isDeleted).length);
   protected readonly accumulatedTasksCount = computed(() => this.tasksForSummary().filter(t => t.status === 'acumulada' && !t.isDeleted).length);
   protected readonly currentFilterStatus = signal<'all' | Task['status'] | 'eliminadas'>('all');
-  protected readonly taskForm = signal({ name: '', status: 'ejecutando' as Task['status'], userId: '' }); // Form for adding/editing tasks
+  protected readonly taskForm = signal({ name: '', status: 'ejecutando' as Task['status'], userId: '', timerMinutes: null as number | null }); // Form for adding/editing tasks
   protected readonly deletedTasksCount = computed(() => this.tasksForSummary().filter(t => t.isDeleted).length);
 
   protected getUserInitials(user: User): string {
@@ -296,6 +298,8 @@ export class App implements OnDestroy {
   protected readonly editorCount = computed(() => this.users().filter(u => u.role === 'editor').length);
   protected readonly viewerCount = computed(() => this.users().filter(u => u.role === 'viewer').length);
   protected readonly userFilterStatus = signal<'all' | 'admin' | 'editor' | 'viewer'>('all');
+  protected readonly timerTick = signal(Date.now());
+  private timerIntervalId: ReturnType<typeof setInterval> | null = null;
 
   constructor(@Inject(PLATFORM_ID) private platformId: object) {
     if (isPlatformBrowser(this.platformId)) {
@@ -322,6 +326,10 @@ export class App implements OnDestroy {
         }
       }
       document.addEventListener('click', this.onDocumentClick.bind(this));
+      this.timerIntervalId = setInterval(() => {
+        this.timerTick.set(Date.now());
+        this.notifyExpiredTasks();
+      }, 1000);
     } else {
       void this.loadUsers();
       void this.loadEmpresas();
@@ -331,6 +339,7 @@ export class App implements OnDestroy {
   ngOnDestroy() {
     if (isPlatformBrowser(this.platformId)) {
       document.removeEventListener('click', this.onDocumentClick.bind(this));
+      if (this.timerIntervalId) clearInterval(this.timerIntervalId);
     }
   }
 
@@ -799,6 +808,15 @@ export class App implements OnDestroy {
     return user.companies.map(c => c.name).join(', ');
   }
 
+  protected getUserTimerSummary(userId: string): string {
+    this.timerTick();
+    const activeTimers = this.tasks().filter(task =>
+      task.userId?._id === userId && task.timerEndsAt && task.status !== 'completada' && !task.isDeleted
+    );
+    if (activeTimers.length === 0) return '';
+    return `${activeTimers.length} temporizador${activeTimers.length === 1 ? '' : 'es'} activo${activeTimers.length === 1 ? '' : 's'}`;
+  }
+
   protected async loadTasks() {
     const user = this.currentUser();
     if (!user) return;
@@ -836,12 +854,17 @@ export class App implements OnDestroy {
     this.taskForm.update(current => ({ ...current, [field]: value }));
   }
 
+  protected updateTaskTimer(value: string) {
+    const timerMinutes = value ? Number(value) : null;
+    this.taskForm.update(current => ({ ...current, timerMinutes }));
+  }
+
   protected async onTaskSubmit(event: Event) {
     event.preventDefault();
     const user = this.currentUser();
     if (!user) return;
 
-    const { name, status } = this.taskForm();
+    const { name, status, timerMinutes } = this.taskForm();
     if (!name.trim()) {
       this.error.set('El nombre de la tarea es obligatorio.');
       return;
@@ -855,6 +878,11 @@ export class App implements OnDestroy {
       name: name.trim(),
       status: status,
     };
+
+    if (user.role === 'admin') {
+      Object.assign(body, { timerMinutes });
+      if (timerMinutes) void this.requestNotificationPermission();
+    }
 
     // Only admins can assign/re-assign tasks.
     if (user.role === 'admin' && this.taskForm().userId) {
@@ -901,7 +929,7 @@ export class App implements OnDestroy {
 
   protected openAddTaskForm() {
     this.editingTask.set(null);
-    this.taskForm.set({ name: '', status: 'ejecutando', userId: this.currentUser()?._id ?? '' });
+    this.taskForm.set({ name: '', status: 'ejecutando', userId: this.currentUser()?._id ?? '', timerMinutes: null });
     this.isTaskFormVisible.set(true);
     this.error.set(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -929,6 +957,7 @@ export class App implements OnDestroy {
       name: task.name,
       status: task.status,
       userId: task.userId._id,
+      timerMinutes: task.timerMinutes ?? null,
     });
     this.isTaskFormVisible.set(false); // Oculta el formulario superior si está abierto
     this.error.set(null);
@@ -936,9 +965,53 @@ export class App implements OnDestroy {
 
   protected cancelEditTask() {
     this.editingTask.set(null);
-    this.taskForm.set({ name: '', status: 'ejecutando', userId: '' });
+    this.taskForm.set({ name: '', status: 'ejecutando', userId: '', timerMinutes: null });
     this.isTaskFormVisible.set(false);
     this.error.set(null);
+  }
+
+  protected getTaskTimerLabel(task: Task): string {
+    this.timerTick();
+    if (!task.timerEndsAt || task.status === 'completada' || task.isDeleted) return '';
+    const remainingMs = new Date(task.timerEndsAt).getTime() - Date.now();
+    if (remainingMs <= 0) return 'Tiempo agotado';
+    const totalSeconds = Math.floor(remainingMs / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return hours > 0
+      ? `${hours}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`
+      : `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+  }
+
+  private async requestNotificationPermission() {
+    if (!isPlatformBrowser(this.platformId) || !('Notification' in window)) return;
+    if (Notification.permission === 'default') await Notification.requestPermission();
+  }
+
+  private notifyExpiredTasks() {
+    if (!isPlatformBrowser(this.platformId) || !('Notification' in window)) return;
+    const expiredTasks = this.tasks().filter(task =>
+      task.timerEndsAt && task.status !== 'completada' && !task.isDeleted && new Date(task.timerEndsAt).getTime() <= Date.now()
+    );
+
+    for (const task of expiredTasks) {
+      const notificationKey = `task-timer-notified:${task._id}:${task.timerEndsAt}`;
+      if (localStorage.getItem(notificationKey)) continue;
+      localStorage.setItem(notificationKey, 'true');
+      if (Notification.permission !== 'granted') continue;
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        void navigator.serviceWorker.ready.then(registration => registration.showNotification('Temporizador agotado', {
+          body: `La tarea "${task.name}" ha llegado a su límite.`,
+          tag: notificationKey,
+          icon: '/icons/icon-192.svg'
+        }));
+      } else {
+        new Notification('Temporizador agotado', {
+          body: `La tarea "${task.name}" ha llegado a su límite.`
+        });
+      }
+    }
   }
 
   protected async updateTaskStatus(task: Task, status: Task['status']) {

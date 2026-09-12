@@ -166,6 +166,18 @@
             <option *ngFor="let user of users()" [value]="user._id">{{ user.name }}</option>
           </select>
         </div>
+        <div class="form-field-group" *ngIf="currentUser()?.role === 'admin'">
+          <label for="task-timer">Temporizador (minutos)</label>
+          <input
+            id="task-timer"
+            type="number"
+            min="1"
+            max="10080"
+            placeholder="Sin límite"
+            [value]="taskForm().timerMinutes ?? ''"
+            (input)="updateTaskTimer($any($event.target).value)"
+          />
+        </div>
       </div>
       <div class="form-actions">
         <button type="submit">Agregar Tarea</button>
@@ -270,6 +282,9 @@
               <p *ngIf="currentUser()?.role === 'admin' && task.userId" class="task-user">
                 Usuario: {{ task.userId.name }}
               </p>
+              <p *ngIf="task.timerEndsAt && !task.isDeleted" class="task-timer" [class.expired]="getTaskTimerLabel(task) === 'Tiempo agotado'">
+                Temporizador: {{ getTaskTimerLabel(task) }}
+              </p>
             </div>
             <div class="card-actions">
               <select [value]="task.status" (change)="updateTaskStatus(task, $any($event.target).value)" aria-label="Cambiar estado de la tarea" [disabled]="(task.isDeleted || task.completed) && currentUser()?.role !== 'admin'">
@@ -322,6 +337,18 @@
                   <select [id]="'task-user-' + task._id" [value]="taskForm().userId" (change)="updateTaskFormField('userId', $any($event.target).value)">
                     <option *ngFor="let user of users()" [value]="user._id">{{ user.name }}</option>
                   </select>
+                </div>
+                <div class="form-field-group" *ngIf="currentUser()?.role === 'admin'">
+                  <label [for]="'task-timer-' + task._id">Temporizador (minutos)</label>
+                  <input
+                    [id]="'task-timer-' + task._id"
+                    type="number"
+                    min="1"
+                    max="10080"
+                    placeholder="Sin límite"
+                    [value]="taskForm().timerMinutes ?? ''"
+                    (input)="updateTaskTimer($any($event.target).value)"
+                  />
                 </div>
               </div>
               <div class="form-actions">
@@ -500,6 +527,7 @@
                       {{ company.name }}
                     </span>
                   </div>
+                  <p *ngIf="getUserTimerSummary(user._id)" class="user-timer-summary">{{ getUserTimerSummary(user._id) }}</p>
                 </div>
               </div>
               <div class="user-meta" *ngIf="currentUser()?.role === 'admin'">
@@ -536,6 +564,7 @@
                       {{ company.name }}
                     </span>
                   </div>
+                  <p *ngIf="getUserTimerSummary(user._id)" class="user-timer-summary">{{ getUserTimerSummary(user._id) }}</p>
                 </div>
               </div>
               <div class="user-meta" *ngIf="currentUser()?.role === 'admin'">
@@ -572,6 +601,7 @@
                       {{ company.name }}
                     </span>
                   </div>
+                  <p *ngIf="getUserTimerSummary(user._id)" class="user-timer-summary">{{ getUserTimerSummary(user._id) }}</p>
                 </div>
               </div>
               <div class="user-meta" *ngIf="currentUser()?.role === 'admin'">

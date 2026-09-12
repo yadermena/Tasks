@@ -14,6 +14,8 @@ const taskSchema = new mongoose.Schema({
   },
   completed: { type: Boolean, default: false },
   completedAt: { type: Date, default: null },
+  timerMinutes: { type: Number, min: 1, default: null },
+  timerEndsAt: { type: Date, default: null },
   isDeleted: { type: Boolean, default: false } // <-- Necesario para el borrado lógico
 }, { 
   timestamps: true,

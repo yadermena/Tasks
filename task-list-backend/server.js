@@ -112,12 +112,18 @@ app.post('/api/tasks', async (req, res) => {
       return res.status(401).json({ message: 'No se proporcionó el ID de usuario' });
     }
 
-    const { name, status, userId: assignedUserId } = req.body;
+    const { name, status, userId: assignedUserId, timerMinutes } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ message: 'El nombre de la tarea es obligatorio' });
     }
     if (status && !['completada', 'ejecutando', 'acumulada'].includes(status)) {
       return res.status(400).json({ message: 'Estado no válido' });
+    }
+    if (timerMinutes !== undefined && requestorRole !== 'admin') {
+      return res.status(403).json({ message: 'Solo un administrador puede configurar el temporizador.' });
+    }
+    if (timerMinutes !== undefined && timerMinutes !== null && (!Number.isInteger(timerMinutes) || timerMinutes < 1 || timerMinutes > 10080)) {
+      return res.status(400).json({ message: 'El temporizador debe estar entre 1 y 10080 minutos.' });
     }
 
     let taskOwnerId = requestorId;
@@ -126,7 +132,13 @@ app.post('/api/tasks', async (req, res) => {
       taskOwnerId = assignedUserId;
     }
 
-    const taskData = { name: name.trim(), userId: taskOwnerId, status: status || 'ejecutando' };
+    const taskData = {
+      name: name.trim(),
+      userId: taskOwnerId,
+      status: status || 'ejecutando',
+      timerMinutes: requestorRole === 'admin' ? timerMinutes ?? null : null,
+      timerEndsAt: requestorRole === 'admin' && timerMinutes ? new Date(Date.now() + timerMinutes * 60 * 1000) : null
+    };
 
     const task = new Task(taskData);
     const savedTask = await task.save();
@@ -204,7 +216,7 @@ app.put('/api/tasks/:id', async (req, res) => {
   try {
     const userRole = req.headers['x-user-role'];
     const userCanEdit = req.headers['x-user-can-edit-task'] === 'true';
-    const { name, status, userId: assignedUserId } = req.body;
+    const { name, status, userId: assignedUserId, timerMinutes } = req.body;
 
     // Only admins or users with canEditTask permission can edit tasks
     if (userRole !== 'admin' && !userCanEdit) {
@@ -226,12 +238,22 @@ app.put('/api/tasks/:id', async (req, res) => {
     if (status !== undefined && !['completada', 'ejecutando', 'acumulada'].includes(status)) {
       return res.status(400).json({ message: 'Estado no válido' });
     }
+    if (timerMinutes !== undefined && userRole !== 'admin') {
+      return res.status(403).json({ message: 'Solo un administrador puede configurar el temporizador.' });
+    }
+    if (timerMinutes !== undefined && timerMinutes !== null && (!Number.isInteger(timerMinutes) || timerMinutes < 1 || timerMinutes > 10080)) {
+      return res.status(400).json({ message: 'El temporizador debe estar entre 1 y 10080 minutos.' });
+    }
 
     const updateData = {};
     if (name !== undefined) updateData.name = name.trim();
     if (status !== undefined) updateData.status = status;
     if (userRole === 'admin' && assignedUserId) {
       updateData.userId = assignedUserId;
+    }
+    if (userRole === 'admin' && timerMinutes !== undefined) {
+      updateData.timerMinutes = timerMinutes;
+      updateData.timerEndsAt = timerMinutes ? new Date(Date.now() + timerMinutes * 60 * 1000) : null;
     }
 
     const updatedTask = await Task.findByIdAndUpdate(
