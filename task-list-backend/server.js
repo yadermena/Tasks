@@ -14,7 +14,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://ydrmena27:yader1989@cluster0.neh7d.mongodb.net/taskdb?appName=Cluster0';
+const MONGO_URI = process.env.MONGO_URI;
+
+if (!MONGO_URI) {
+  console.error('Falta la variable de entorno MONGO_URI. Configúrala en task-list-backend/.env.');
+  process.exit(1);
+}
 
 // Helper functions for password hashing
 function generateSalt() {
