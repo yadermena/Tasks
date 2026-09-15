@@ -1089,9 +1089,10 @@ button:hover {
   overflow-y: auto;
 }
 .modal-content h2 {
-  margin-top: 0;
+  margin-top: 0px;
   margin-bottom: 1rem;
   font-size: clamp(1.15rem, 3vw, 1.5rem);
+  text-align: center;
 }
 .permission-toggle {
   display: grid;
