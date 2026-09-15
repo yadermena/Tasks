@@ -51,7 +51,7 @@ async function seedRoles() {
       // Crea el rol si no existe, o lo actualiza si los permisos han cambiado en el código.
       await Role.updateOne({ name: roleData.name }, { $set: roleData }, { upsert: true });
     }
-    console.log('Roles inicializados/verificados con éxito.');
+    //console.log('Roles inicializados/verificados con éxito.');
   } catch (error) {
     console.error('Error al inicializar los roles:', error);
   }

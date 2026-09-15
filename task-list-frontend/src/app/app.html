@@ -121,7 +121,7 @@
           <div *ngIf="user.role !== 'admin'">
             <p class="eyebrow">Tareas de</p>
             <h1>{{ user.name }}</h1>
-            <p>Aquí puedes gestionar las tareas para este usuario.</p>
+            <p>Gestionando tareas</p>
           </div>
         </header>
 
@@ -254,7 +254,13 @@
             <span class="calendar-day-number">{{ day.day }}</span>
             <span class="calendar-event" *ngFor="let calendarEvent of eventsForDate(day.date)" [class.calendar-event-hidden-on-select]="calendarEventDate() === day.date">
               {{ calendarEvent.title }}
-              <span class="calendar-event-remove" (click)="$event.stopPropagation(); removeCalendarEvent(calendarEvent.id)" role="button" tabindex="0" aria-label="Eliminar evento">×</span>
+              <span
+                class="calendar-event-remove"
+                *ngIf="currentUser()?.role === 'admin'"
+                (click)="$event.stopPropagation(); removeCalendarEvent(calendarEvent.id)"
+                role="button"
+                tabindex="0"
+                aria-label="Eliminar evento">×</span>
             </span>
             <span class="calendar-day-events-expanded" *ngIf="calendarEventDate() === day.date && eventsForDate(day.date).length > 0">
               <span class="calendar-day-event-title">Eventos:</span>
@@ -263,7 +269,7 @@
           </button>
         </div>
 
-        <form class="calendar-event-form" (submit)="addCalendarEvent($event)">
+        <form class="calendar-event-form" *ngIf="currentUser()?.role === 'admin'" (submit)="addCalendarEvent($event)">
           <label for="calendar-event-date">Fecha seleccionada</label>
           <input id="calendar-event-date" type="date" [value]="calendarEventDate()" (change)="selectCalendarDate($any($event.target).value)" />
           <label for="calendar-event-title">Nuevo evento</label>
@@ -842,7 +848,7 @@
     <div class="modal-content">
       <h2>Permisos para {{ user.name }}</h2>
       <div class="permission-toggle">
-        <label for="can-delete">Permiso para Eliminar Tareas</label>
+        <label for="can-delete">Eliminar Tareas</label>
         <button
           type="button"
           (click)="toggleDeletePermission(user)"
@@ -852,7 +858,7 @@
         </button>
       </div>
       <div class="permission-toggle">
-        <label for="can-edit-profile">Permiso para Editar Perfil</label>
+        <label for="can-edit-profile">Editar Perfil</label>
         <button
           type="button"
           (click)="toggleProfileEditPermission(user)"
@@ -862,7 +868,7 @@
         </button>
       </div>
       <div class="permission-toggle">
-        <label for="can-edit-task">Permiso para Editar Tareas</label>
+        <label for="can-edit-task">Editar Tareas</label>
         <button
           type="button"
           (click)="toggleTaskEditPermission(user)"
@@ -872,19 +878,19 @@
         </button>
       </div>
       <div class="permission-toggle">
-        <label for="can-set-executing">Permiso para Cambiar a En Ejecución</label>
+        <label for="can-set-executing">Cambiar a En Ejecución</label>
         <button type="button" (click)="toggleTaskPermission(user, 'canSetExecuting')" [ngClass]="!!user.canSetExecuting ? 'danger' : 'success'">
           {{ !!user.canSetExecuting ? 'Quitar Permiso' : 'Dar Permiso' }}
         </button>
       </div>
       <div class="permission-toggle">
-        <label for="can-set-completed">Permiso para Cambiar a Completada</label>
+        <label for="can-set-completed">Cambiar a Completada</label>
         <button type="button" (click)="toggleTaskPermission(user, 'canSetCompleted')" [ngClass]="!!user.canSetCompleted ? 'danger' : 'success'">
           {{ !!user.canSetCompleted ? 'Quitar Permiso' : 'Dar Permiso' }}
         </button>
       </div>
       <div class="permission-toggle">
-        <label for="can-restore-task">Permiso para Restaurar o Regresar al Estado Inicial</label>
+        <label for="can-restore-task">Restaurar o Regresar al Estado Inicial</label>
         <button type="button" (click)="toggleTaskPermission(user, 'canRestoreTask')" [ngClass]="!!user.canRestoreTask ? 'danger' : 'success'">
           {{ !!user.canRestoreTask ? 'Quitar Permiso' : 'Dar Permiso' }}
         </button>

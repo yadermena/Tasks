@@ -713,6 +713,7 @@ export class App implements OnDestroy {
 
   protected addCalendarEvent(event: Event) {
     event.preventDefault();
+    if (this.currentUser()?.role !== 'admin') return;
     const title = this.calendarEventTitle().trim();
     if (!title || !this.calendarEventDate()) return;
     const newEvent: CalendarEvent = {
@@ -725,6 +726,7 @@ export class App implements OnDestroy {
   }
 
   protected removeCalendarEvent(eventId: string) {
+    if (this.currentUser()?.role !== 'admin') return;
     this.saveCalendarEvents(this.calendarEvents().filter(event => event.id !== eventId));
   }
 
