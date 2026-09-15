@@ -20,6 +20,11 @@ interface Task {
   };
 }
 
+interface CalendarEvent {
+  date: string;
+  title: string;
+}
+
 @Component({
   selector: 'app-public-tasks',
   standalone: true,
@@ -30,6 +35,7 @@ interface Task {
         <p class="eyebrow">Vista Pública</p>
         <h1 *ngIf="userName()">Tareas de {{ userName() }}</h1>
         <p>Lista de tareas compartida.</p>
+        <p *ngIf="nextEventLabel()" class="next-event">Próximo evento: {{ nextEventLabel() }}</p>
       </header>
 
       <div *ngIf="loading()" class="status-bar">Cargando tareas...</div>
@@ -75,6 +81,15 @@ interface Task {
     .task-list {
       display: grid;
       gap: 1rem;
+    }
+    .next-event {
+      display: inline-block;
+      margin: 0.75rem 0 0;
+      padding: 0.55rem 0.8rem;
+      border-radius: 0.6rem;
+      background: #eef2ff;
+      color: #3730a3;
+      font-weight: 700;
     }
     .task-card {
       background: white;
@@ -129,6 +144,7 @@ export class PublicTasksComponent implements OnInit, OnDestroy {
   protected readonly userName = signal<string>('');
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
+  protected readonly nextEventLabel = signal('');
   private timerTick = signal(Date.now());
   private timerIntervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -140,6 +156,7 @@ export class PublicTasksComponent implements OnInit, OnDestroy {
   ngOnInit() {
     if (isPlatformBrowser(this.platformId)) {
       this.timerIntervalId = setInterval(() => this.timerTick.set(Date.now()), 1000);
+      this.loadNextCalendarEvent();
     }
     const userId = this.route.snapshot.paramMap.get('userId');
     if (userId) {
@@ -183,6 +200,26 @@ export class PublicTasksComponent implements OnInit, OnDestroy {
       this.error.set(String(err));
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  private loadNextCalendarEvent() {
+    if (!isPlatformBrowser(this.platformId)) return;
+    const storedEvents = localStorage.getItem('task-list-calendar-events');
+    if (!storedEvents) return;
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const nextEvent = (JSON.parse(storedEvents) as CalendarEvent[])
+        .filter(event => event.date >= today)
+        .sort((first, second) => first.date.localeCompare(second.date))[0];
+      if (!nextEvent) return;
+      const eventDate = new Date(`${nextEvent.date}T00:00:00`).toLocaleDateString('es-ES', {
+        day: 'numeric',
+        month: 'short'
+      });
+      this.nextEventLabel.set(`${eventDate}: ${nextEvent.title}`);
+    } catch {
+      this.nextEventLabel.set('');
     }
   }
 }

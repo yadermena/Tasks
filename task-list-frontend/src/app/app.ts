@@ -50,6 +50,19 @@ interface Task {
   };
 }
 
+interface CalendarEvent {
+  id: string;
+  date: string;
+  title: string;
+}
+
+interface CalendarDay {
+  date: string;
+  day: number;
+  isCurrentMonth: boolean;
+  isToday: boolean;
+}
+
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -61,6 +74,7 @@ export class App implements OnDestroy {
   protected readonly title = signal('Dashboard de usuarios');
   protected readonly users = signal<User[]>([]);
   protected readonly query = signal('');
+  protected readonly isUserSearchOpen = signal(false);
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly isSidebarOpen = signal(false);
@@ -92,6 +106,7 @@ export class App implements OnDestroy {
   protected readonly realUser = signal<User | null>(null);
   // Signals for the "logged-in" user and their tasks
   protected readonly currentUser = signal<User | null>(null);
+  protected readonly isCalendarOpen = signal(false);
   protected readonly tasks = signal<Task[]>([]); // All tasks for the current user/admin
   protected readonly editingTask = signal<Task | null>(null); // Task being edited
   protected readonly isTaskFormVisible = signal(false); // Visibility of the task form
@@ -99,6 +114,7 @@ export class App implements OnDestroy {
   protected readonly newTaskName = signal('');
   protected readonly taskQuery = signal('');
   protected readonly selectedTaskUserId = signal<string | 'all'>('all');
+  protected readonly taskUserSearch = signal('');
 
   protected readonly tasksForSummary = computed(() => {
     const allTasks = this.tasks();
@@ -114,7 +130,14 @@ export class App implements OnDestroy {
   protected readonly runningTasksCount = computed(() => this.tasksForSummary().filter(t => t.status === 'ejecutando' && !t.isDeleted).length);
   protected readonly accumulatedTasksCount = computed(() => this.tasksForSummary().filter(t => t.status === 'acumulada' && !t.isDeleted).length);
   protected readonly currentFilterStatus = signal<'all' | Task['status'] | 'eliminadas'>('all');
-  protected readonly taskForm = signal({ name: '', status: 'ejecutando' as Task['status'], userId: '', timerMinutes: null as number | null }); // Form for adding/editing tasks
+  protected readonly taskForm = signal({
+    name: '',
+    status: 'ejecutando' as Task['status'],
+    userId: '',
+    timerDays: null as number | null,
+    timerHours: null as number | null,
+    timerMinutes: null as number | null
+  });
   protected readonly deletedTasksCount = computed(() => this.tasksForSummary().filter(t => t.isDeleted).length);
 
   protected getUserInitials(user: User): string {
@@ -185,6 +208,12 @@ export class App implements OnDestroy {
     }
     const user = this.users().find(u => u._id === selectedId);
     return user?.name ?? 'Todos los usuarios';
+  });
+
+  protected readonly filteredTaskUsers = computed(() => {
+    const term = this.taskUserSearch().trim().toLowerCase();
+    if (!term) return this.users();
+    return this.users().filter(user => user.name.toLowerCase().includes(term));
   });
 
   protected readonly currentUserInitials = computed(() => {
@@ -299,7 +328,50 @@ export class App implements OnDestroy {
   protected readonly viewerCount = computed(() => this.users().filter(u => u.role === 'viewer').length);
   protected readonly userFilterStatus = signal<'all' | 'admin' | 'editor' | 'viewer'>('all');
   protected readonly timerTick = signal(Date.now());
+  protected readonly calendarMonth = signal(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  protected readonly calendarEvents = signal<CalendarEvent[]>([]);
+  protected readonly calendarEventTitle = signal('');
+  protected readonly calendarEventDate = signal(this.toDateKey(new Date()));
   private timerIntervalId: ReturnType<typeof setInterval> | null = null;
+
+  protected readonly calendarMonthLabel = computed(() => this.calendarMonth().toLocaleDateString('es-ES', {
+    month: 'long',
+    year: 'numeric'
+  }));
+
+  protected readonly calendarDays = computed<CalendarDay[]>(() => {
+    const month = this.calendarMonth();
+    const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
+    const startOffset = (firstDay.getDay() + 6) % 7;
+    const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+    const daysInPreviousMonth = new Date(month.getFullYear(), month.getMonth(), 0).getDate();
+    const todayKey = this.toDateKey(new Date());
+    const days: CalendarDay[] = [];
+
+    for (let index = 0; index < 42; index += 1) {
+      const dayOffset = index - startOffset;
+      let date: Date;
+      let day: number;
+      let isCurrentMonth = true;
+
+      if (dayOffset < 0) {
+        date = new Date(month.getFullYear(), month.getMonth() - 1, daysInPreviousMonth + dayOffset + 1);
+        day = date.getDate();
+        isCurrentMonth = false;
+      } else if (dayOffset >= daysInMonth) {
+        date = new Date(month.getFullYear(), month.getMonth() + 1, dayOffset - daysInMonth + 1);
+        day = date.getDate();
+        isCurrentMonth = false;
+      } else {
+        date = new Date(month.getFullYear(), month.getMonth(), dayOffset + 1);
+        day = dayOffset + 1;
+      }
+
+      const dateKey = this.toDateKey(date);
+      days.push({ date: dateKey, day, isCurrentMonth, isToday: dateKey === todayKey });
+    }
+    return days;
+  });
 
   constructor(@Inject(PLATFORM_ID) private platformId: object) {
     if (isPlatformBrowser(this.platformId)) {
@@ -325,6 +397,7 @@ export class App implements OnDestroy {
           void this.loadEmpresas();
         }
       }
+      this.loadCalendarEvents();
       document.addEventListener('click', this.onDocumentClick.bind(this));
       this.timerIntervalId = setInterval(() => {
         this.timerTick.set(Date.now());
@@ -556,11 +629,103 @@ export class App implements OnDestroy {
       // Reload the companies to get the updated `assignedUser` info.
       void this.loadEmpresas();
 
+      this.loadCalendarEvents();
       this.resetForm();
       this.isUserFormVisible.set(false);
     } catch (err) {
       this.error.set(String(err));
     }
+  }
+
+  private toDateKey(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  private loadCalendarEvents() {
+    if (!isPlatformBrowser(this.platformId)) return;
+    const storedEvents = localStorage.getItem('task-list-calendar-events');
+    if (!storedEvents) return;
+    try {
+      this.calendarEvents.set(JSON.parse(storedEvents) as CalendarEvent[]);
+    } catch {
+      localStorage.removeItem('task-list-calendar-events');
+    }
+  }
+
+  private saveCalendarEvents(events: CalendarEvent[]) {
+    this.calendarEvents.set(events);
+    if (isPlatformBrowser(this.platformId)) {
+      localStorage.setItem('task-list-calendar-events', JSON.stringify(events));
+    }
+  }
+
+  protected eventsForDate(date: string): CalendarEvent[] {
+    return this.calendarEvents().filter(event => event.date === date);
+  }
+
+  protected calendarDayEventLabel(date: string): string {
+    return this.eventsForDate(date).map(event => event.title).join(' | ');
+  }
+
+  protected nextCalendarEvent(): CalendarEvent | null {
+    const today = this.toDateKey(new Date());
+    return this.calendarEvents()
+      .filter(event => event.date >= today)
+      .sort((first, second) => first.date.localeCompare(second.date))[0] ?? null;
+  }
+
+  protected nextCalendarEventLabel(): string {
+    const event = this.nextCalendarEvent();
+    if (!event) return '';
+    const eventDate = new Date(`${event.date}T00:00:00`).toLocaleDateString('es-ES', {
+      day: 'numeric',
+      month: 'short'
+    });
+    return `${eventDate}: ${event.title}`;
+  }
+
+  protected previousCalendarMonth() {
+    const current = this.calendarMonth();
+    this.calendarMonth.set(new Date(current.getFullYear(), current.getMonth() - 1, 1));
+  }
+
+  protected nextCalendarMonth() {
+    const current = this.calendarMonth();
+    this.calendarMonth.set(new Date(current.getFullYear(), current.getMonth() + 1, 1));
+  }
+
+  protected goToCurrentMonth() {
+    const today = new Date();
+    this.calendarMonth.set(new Date(today.getFullYear(), today.getMonth(), 1));
+    this.calendarEventDate.set(this.toDateKey(today));
+  }
+
+  protected selectCalendarDate(date: string) {
+    this.calendarEventDate.set(date);
+  }
+
+  protected updateCalendarEventTitle(value: string) {
+    this.calendarEventTitle.set(value);
+  }
+
+  protected addCalendarEvent(event: Event) {
+    event.preventDefault();
+    const title = this.calendarEventTitle().trim();
+    if (!title || !this.calendarEventDate()) return;
+    const newEvent: CalendarEvent = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      date: this.calendarEventDate(),
+      title
+    };
+    this.saveCalendarEvents([...this.calendarEvents(), newEvent]);
+    this.calendarEventTitle.set('');
+  }
+
+  protected removeCalendarEvent(eventId: string) {
+    this.saveCalendarEvents(this.calendarEvents().filter(event => event.id !== eventId));
   }
 
   protected editUser(user: User) {
@@ -795,7 +960,12 @@ export class App implements OnDestroy {
 
   protected selectTaskUser(userId: string | 'all') {
     this.selectedTaskUserId.set(userId);
+    this.taskUserSearch.set('');
     this.isUserFilterDropdownOpen.set(false);
+  }
+
+  protected updateTaskUserSearch(value: string) {
+    this.taskUserSearch.set(value);
   }
 
   protected updateTaskQuery(value: string) {
@@ -855,8 +1025,13 @@ export class App implements OnDestroy {
   }
 
   protected updateTaskTimer(value: string) {
-    const timerMinutes = value ? Number(value) : null;
+    const timerMinutes = value ? Math.max(0, Number(value)) : null;
     this.taskForm.update(current => ({ ...current, timerMinutes }));
+  }
+
+  protected updateTaskTimerPart(part: 'timerDays' | 'timerHours' | 'timerMinutes', value: string) {
+    const timerValue = value ? Math.max(0, Number(value)) : null;
+    this.taskForm.update(current => ({ ...current, [part]: timerValue }));
   }
 
   protected async onTaskSubmit(event: Event) {
@@ -864,7 +1039,8 @@ export class App implements OnDestroy {
     const user = this.currentUser();
     if (!user) return;
 
-    const { name, status, timerMinutes } = this.taskForm();
+    const { name, status, timerDays, timerHours, timerMinutes } = this.taskForm();
+    const totalTimerMinutes = (timerDays ?? 0) * 1440 + (timerHours ?? 0) * 60 + (timerMinutes ?? 0);
     if (!name.trim()) {
       this.error.set('El nombre de la tarea es obligatorio.');
       return;
@@ -880,8 +1056,8 @@ export class App implements OnDestroy {
     };
 
     if (user.role === 'admin') {
-      Object.assign(body, { timerMinutes });
-      if (timerMinutes) void this.requestNotificationPermission();
+      Object.assign(body, { timerMinutes: totalTimerMinutes || null });
+      if (totalTimerMinutes > 0) void this.requestNotificationPermission();
     }
 
     // Only admins can assign/re-assign tasks.
@@ -929,7 +1105,7 @@ export class App implements OnDestroy {
 
   protected openAddTaskForm() {
     this.editingTask.set(null);
-    this.taskForm.set({ name: '', status: 'ejecutando', userId: this.currentUser()?._id ?? '', timerMinutes: null });
+    this.taskForm.set({ name: '', status: 'ejecutando', userId: this.currentUser()?._id ?? '', timerDays: null, timerHours: null, timerMinutes: null });
     this.isTaskFormVisible.set(true);
     this.error.set(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -953,11 +1129,14 @@ export class App implements OnDestroy {
       }
     }
     this.editingTask.set(task);
+    const totalTimerMinutes = task.timerMinutes ?? 0;
     this.taskForm.set({
       name: task.name,
       status: task.status,
       userId: task.userId._id,
-      timerMinutes: task.timerMinutes ?? null,
+      timerDays: totalTimerMinutes ? Math.floor(totalTimerMinutes / 1440) : null,
+      timerHours: totalTimerMinutes ? Math.floor((totalTimerMinutes % 1440) / 60) : null,
+      timerMinutes: totalTimerMinutes ? totalTimerMinutes % 60 : null,
     });
     this.isTaskFormVisible.set(false); // Oculta el formulario superior si está abierto
     this.error.set(null);
@@ -965,7 +1144,7 @@ export class App implements OnDestroy {
 
   protected cancelEditTask() {
     this.editingTask.set(null);
-    this.taskForm.set({ name: '', status: 'ejecutando', userId: '', timerMinutes: null });
+    this.taskForm.set({ name: '', status: 'ejecutando', userId: '', timerDays: null, timerHours: null, timerMinutes: null });
     this.isTaskFormVisible.set(false);
     this.error.set(null);
   }
@@ -976,12 +1155,16 @@ export class App implements OnDestroy {
     const remainingMs = new Date(task.timerEndsAt).getTime() - Date.now();
     if (remainingMs <= 0) return 'Tiempo agotado';
     const totalSeconds = Math.floor(remainingMs / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
-    return hours > 0
-      ? `${hours}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`
-      : `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+    const parts: string[] = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0 || days > 0) parts.push(`${hours}h`);
+    if (minutes > 0 || hours > 0 || days > 0) parts.push(`${minutes}m`);
+    parts.push(`${seconds}s`);
+    return parts.join(' ');
   }
 
   private async requestNotificationPermission() {

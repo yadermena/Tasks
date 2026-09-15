@@ -166,17 +166,13 @@
             <option *ngFor="let user of users()" [value]="user._id">{{ user.name }}</option>
           </select>
         </div>
-        <div class="form-field-group" *ngIf="currentUser()?.role === 'admin'">
-          <label for="task-timer">Temporizador (minutos)</label>
-          <input
-            id="task-timer"
-            type="number"
-            min="1"
-            max="10080"
-            placeholder="Sin límite"
-            [value]="taskForm().timerMinutes ?? ''"
-            (input)="updateTaskTimer($any($event.target).value)"
-          />
+        <div class="form-field-group timer-fields" *ngIf="currentUser()?.role === 'admin'">
+          <label>Temporizador</label>
+          <div class="timer-inputs">
+            <input type="number" min="0" max="7" placeholder="Días" aria-label="Días del temporizador" [value]="taskForm().timerDays ?? ''" (input)="updateTaskTimerPart('timerDays', $any($event.target).value)" />
+            <input type="number" min="0" max="23" placeholder="Horas" aria-label="Horas del temporizador" [value]="taskForm().timerHours ?? ''" (input)="updateTaskTimerPart('timerHours', $any($event.target).value)" />
+            <input type="number" min="0" max="59" placeholder="Minutos" aria-label="Minutos del temporizador" [value]="taskForm().timerMinutes ?? ''" (input)="updateTaskTimerPart('timerMinutes', $any($event.target).value)" />
+          </div>
         </div>
       </div>
       <div class="form-actions">
@@ -224,6 +220,59 @@
       </button>
     </section>
 
+    <button type="button" class="agenda-toggle" (click)="isCalendarOpen.update(value => !value)" [attr.aria-expanded]="isCalendarOpen()">
+      Agenda
+    </button>
+
+    <section class="calendar-panel" *ngIf="isCalendarOpen()" aria-labelledby="calendar-title">
+      <div class="calendar-header">
+        <div>
+          <p class="eyebrow">Agenda</p>
+          <h2 id="calendar-title">Eventos importantes</h2>
+        </div>
+        <div class="calendar-navigation">
+          <button type="button" class="calendar-nav-button" (click)="previousCalendarMonth()" aria-label="Mes anterior">‹</button>
+          <strong>{{ calendarMonthLabel() }}</strong>
+          <button type="button" class="calendar-nav-button" (click)="nextCalendarMonth()" aria-label="Mes siguiente">›</button>
+          <button type="button" class="calendar-today-button" (click)="goToCurrentMonth()">Hoy</button>
+        </div>
+      </div>
+
+      <div class="calendar-layout">
+        <div class="calendar-grid" role="grid" aria-label="Calendario mensual">
+          <span class="calendar-weekday" *ngFor="let weekday of ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']">{{ weekday }}</span>
+          <button
+            type="button"
+            class="calendar-day"
+            *ngFor="let day of calendarDays()"
+            [class.outside-month]="!day.isCurrentMonth"
+            [class.today]="day.isToday"
+            [class.selected]="calendarEventDate() === day.date"
+            (click)="selectCalendarDate(day.date)"
+            [attr.title]="calendarDayEventLabel(day.date) || 'Sin eventos'"
+            [attr.aria-label]="day.date">
+            <span class="calendar-day-number">{{ day.day }}</span>
+            <span class="calendar-event" *ngFor="let calendarEvent of eventsForDate(day.date)" [class.calendar-event-hidden-on-select]="calendarEventDate() === day.date">
+              {{ calendarEvent.title }}
+              <span class="calendar-event-remove" (click)="$event.stopPropagation(); removeCalendarEvent(calendarEvent.id)" role="button" tabindex="0" aria-label="Eliminar evento">×</span>
+            </span>
+            <span class="calendar-day-events-expanded" *ngIf="calendarEventDate() === day.date && eventsForDate(day.date).length > 0">
+              <span class="calendar-day-event-title">Eventos:</span>
+              <span class="calendar-day-event-item" *ngFor="let calendarEvent of eventsForDate(day.date)">{{ calendarEvent.title }}</span>
+            </span>
+          </button>
+        </div>
+
+        <form class="calendar-event-form" (submit)="addCalendarEvent($event)">
+          <label for="calendar-event-date">Fecha seleccionada</label>
+          <input id="calendar-event-date" type="date" [value]="calendarEventDate()" (change)="selectCalendarDate($any($event.target).value)" />
+          <label for="calendar-event-title">Nuevo evento</label>
+          <input id="calendar-event-title" type="text" placeholder="Ej. Reunión con cliente" [value]="calendarEventTitle()" (input)="updateCalendarEventTitle($any($event.target).value)" />
+          <button type="submit">Agregar evento</button>
+        </form>
+      </div>
+    </section>
+
     <!-- Task List -->
     <section class="users-section">
       <div class="users-toolbar">
@@ -237,11 +286,21 @@
               </svg>
             </button>
             <div class="dropdown-menu" *ngIf="isUserFilterDropdownOpen()">
+              <div class="task-user-search">
+                <input
+                  type="search"
+                  placeholder="Buscar usuario..."
+                  [value]="taskUserSearch()"
+                  (input)="updateTaskUserSearch($any($event.target).value)"
+                  aria-label="Buscar usuario en la lista"
+                />
+              </div>
               <ul class="dropdown-options-list">
                 <li><button (click)="selectTaskUser('all')">Todos los usuarios</button></li>
-                <li *ngFor="let user of users()">
+                <li *ngFor="let user of filteredTaskUsers()">
                   <button (click)="selectTaskUser(user._id)">{{ user.name }}</button>
                 </li>
+                <li *ngIf="filteredTaskUsers().length === 0" class="no-user-results">No hay usuarios.</li>
               </ul>
             </div>
           </div>
@@ -281,6 +340,9 @@
               </div>
               <p *ngIf="currentUser()?.role === 'admin' && task.userId" class="task-user">
                 Usuario: {{ task.userId.name }}
+              </p>
+              <p *ngIf="nextCalendarEventLabel()" class="task-next-event">
+                Próximo evento: {{ nextCalendarEventLabel() }}
               </p>
               <p *ngIf="task.timerEndsAt && !task.isDeleted" class="task-timer" [class.expired]="getTaskTimerLabel(task) === 'Tiempo agotado'">
                 Temporizador: {{ getTaskTimerLabel(task) }}
@@ -338,17 +400,13 @@
                     <option *ngFor="let user of users()" [value]="user._id">{{ user.name }}</option>
                   </select>
                 </div>
-                <div class="form-field-group" *ngIf="currentUser()?.role === 'admin'">
-                  <label [for]="'task-timer-' + task._id">Temporizador (minutos)</label>
-                  <input
-                    [id]="'task-timer-' + task._id"
-                    type="number"
-                    min="1"
-                    max="10080"
-                    placeholder="Sin límite"
-                    [value]="taskForm().timerMinutes ?? ''"
-                    (input)="updateTaskTimer($any($event.target).value)"
-                  />
+                <div class="form-field-group timer-fields" *ngIf="currentUser()?.role === 'admin'">
+                  <label>Temporizador</label>
+                  <div class="timer-inputs">
+                    <input type="number" min="0" max="7" placeholder="Días" aria-label="Días del temporizador" [value]="taskForm().timerDays ?? ''" (input)="updateTaskTimerPart('timerDays', $any($event.target).value)" />
+                    <input type="number" min="0" max="23" placeholder="Horas" aria-label="Horas del temporizador" [value]="taskForm().timerHours ?? ''" (input)="updateTaskTimerPart('timerHours', $any($event.target).value)" />
+                    <input type="number" min="0" max="59" placeholder="Minutos" aria-label="Minutos del temporizador" [value]="taskForm().timerMinutes ?? ''" (input)="updateTaskTimerPart('timerMinutes', $any($event.target).value)" />
+                  </div>
                 </div>
               </div>
               <div class="form-actions">
@@ -489,13 +547,19 @@
       <section class="users-section" *ngIf="currentUser()?.role === 'admin' || currentUser() === null">
         <div class="users-toolbar">
           <h2>Usuarios</h2>
-          <input
-            type="search"
-            placeholder="Buscar usuario..."
-            [value]="query()"
-            (input)="updateQuery($any($event.target).value)"
-            aria-label="Buscar usuarios"
-          />
+          <div class="user-search">
+            <button type="button" class="user-search-toggle" (click)="isUserSearchOpen.update(value => !value)" [attr.aria-expanded]="isUserSearchOpen()" aria-label="Buscar usuarios" title="Buscar usuarios">
+              <span aria-hidden="true">⌕</span>
+            </button>
+            <input
+              *ngIf="isUserSearchOpen()"
+              type="search"
+              placeholder="Buscar usuario..."
+              [value]="query()"
+              (input)="updateQuery($any($event.target).value)"
+              aria-label="Buscar usuarios"
+            />
+          </div>
         </div>
 
         <div class="status-bar" *ngIf="loading()">Cargando usuarios...</div>
@@ -527,6 +591,7 @@
                       {{ company.name }}
                     </span>
                   </div>
+                  <p *ngIf="nextCalendarEventLabel()" class="user-next-event">Próximo evento: {{ nextCalendarEventLabel() }}</p>
                   <p *ngIf="getUserTimerSummary(user._id)" class="user-timer-summary">{{ getUserTimerSummary(user._id) }}</p>
                 </div>
               </div>
@@ -564,6 +629,7 @@
                       {{ company.name }}
                     </span>
                   </div>
+                  <p *ngIf="nextCalendarEventLabel()" class="user-next-event">Próximo evento: {{ nextCalendarEventLabel() }}</p>
                   <p *ngIf="getUserTimerSummary(user._id)" class="user-timer-summary">{{ getUserTimerSummary(user._id) }}</p>
                 </div>
               </div>
@@ -601,6 +667,7 @@
                       {{ company.name }}
                     </span>
                   </div>
+                  <p *ngIf="nextCalendarEventLabel()" class="user-next-event">Próximo evento: {{ nextCalendarEventLabel() }}</p>
                   <p *ngIf="getUserTimerSummary(user._id)" class="user-timer-summary">{{ getUserTimerSummary(user._id) }}</p>
                 </div>
               </div>
