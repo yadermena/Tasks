@@ -1,5 +1,6 @@
 import { Component, computed, signal, Inject, PLATFORM_ID, OnDestroy } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { SwPush } from '@angular/service-worker';
 import { LoginComponent } from './login/login';
 
 const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
@@ -373,7 +374,7 @@ export class App implements OnDestroy {
     return days;
   });
 
-  constructor(@Inject(PLATFORM_ID) private platformId: object) {
+  constructor(@Inject(PLATFORM_ID) private platformId: object, private swPush: SwPush) {
     if (isPlatformBrowser(this.platformId)) {
       // Check for loginAs parameter in URL
       const urlParams = new URLSearchParams(window.location.search);
@@ -485,9 +486,34 @@ export class App implements OnDestroy {
     this.currentUser.set(user);
     void this.loadTasks(); // Load tasks for the newly "logged-in" user
     if (user.role === 'admin') {
+      void this.registerAdminPushSubscription(user);
+    }
+    if (user.role === 'admin') {
       void this.loadEmpresas();
     }
     this.isSidebarOpen.set(false);
+  }
+
+  private async registerAdminPushSubscription(user: User) {
+    if (!isPlatformBrowser(this.platformId) || !this.swPush.isEnabled || !('Notification' in window)) return;
+    try {
+      const permission = Notification.permission === 'default'
+        ? await Notification.requestPermission()
+        : Notification.permission;
+      if (permission !== 'granted') return;
+
+      const keyResponse = await fetch(`${API_BASE}/api/push/public-key`);
+      if (!keyResponse.ok) return;
+      const { publicKey } = await keyResponse.json();
+      const subscription = await this.swPush.requestSubscription({ serverPublicKey: publicKey });
+      await fetch(`${API_BASE}/api/push/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user._id },
+        body: JSON.stringify(subscription)
+      });
+    } catch (error) {
+      console.warn('No se pudo registrar la suscripción push:', error);
+    }
   }
 
 

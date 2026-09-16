@@ -124,6 +124,9 @@ Crear un archivo .env dentro de task-list-backend/:
 MONGO_URI=mongodb+srv://USUARIO:CONTRASENA@CLUSTER.mongodb.net/taskdb?retryWrites=true&w=majority  
  PORT=5000  
  NODE_ENV=development  
+	VAPID_SUBJECT=mailto:admin@tu-dominio.com
+	VAPID_PUBLIC_KEY=CLAVE_PUBLICA_GENERADA
+	VAPID_PRIVATE_KEY=CLAVE_PRIVADA_GENERADA
    
 Para MongoDB Atlas:  
 1. Crear o seleccionar un cluster.  
@@ -132,6 +135,12 @@ Para MongoDB Atlas:
 4. Copiar la cadena de conexión desde **Connect > Drivers**.  
 5. Sustituir usuario, contraseña y cluster en MONGO_URI.  
 Nunca publicar contraseñas, tokens ni cadenas mongodb+srv reales en Git. El archivo .env debe estar incluido en .gitignore. Si se comparte el repositorio, rotar inmediatamente cualquier credencial que haya quedado expuesta.  
+
+Para habilitar las notificaciones push de nuevas tareas para los administradores, generar las claves una sola vez desde `task-list-backend/`:
+
+ npx web-push generate-vapid-keys
+
+Copiar los valores generados a `VAPID_PUBLIC_KEY` y `VAPID_PRIVATE_KEY`, y configurar las mismas variables en el entorno de despliegue del backend. Los administradores deben iniciar sesión con un navegador compatible y aceptar el permiso de notificaciones.
 **7. Instalación y ejecución local**  
 **7.1 Backend**  
 En una terminal:  

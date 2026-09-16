@@ -515,6 +515,11 @@ button:hover {
   box-sizing: border-box;
 }
 
+.user-card.completed-task {
+  border-left: 4px solid #22c55e;
+  background: #f0fdf4;
+}
+
 .user-card h3 {
   margin: 0 0 0.25rem;
 }
@@ -643,6 +648,11 @@ button:hover {
 }
 .status-dot.status-ejecutando { background-color: #eab308; box-shadow: 0 0 5px #eab308; }
 .status-dot.status-acumulada { background-color: #ef4444; box-shadow: 0 0 5px #ef4444; }
+.status-dot.status-completada { background-color: #22c55e; box-shadow: 0 0 5px #22c55e; }
+
+.completed-task .status-text {
+  color: #15803d;
+}
 
 .status-text {
   font-weight: 600;

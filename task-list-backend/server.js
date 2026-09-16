@@ -8,6 +8,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const crypto = require('crypto');
+const webpush = require('web-push');
 
 const app = express();
 
@@ -15,6 +16,12 @@ app.use(cors());
 app.use(express.json());
 
 const MONGO_URI = process.env.MONGO_URI;
+
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT) {
+  webpush.setVapidDetails(process.env.VAPID_SUBJECT, process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
+} else {
+  console.warn('Web Push deshabilitado: faltan variables VAPID.');
+}
 
 if (!MONGO_URI) {
   console.error('Falta la variable de entorno MONGO_URI. Configúrala en task-list-backend/.env.');
@@ -58,6 +65,56 @@ async function seedRoles() {
 }
 
 // --- RUTAS DE LA API ---
+
+app.get('/api/push/public-key', (req, res) => {
+  if (!process.env.VAPID_PUBLIC_KEY) {
+    return res.status(503).json({ message: 'Las notificaciones push no están configuradas.' });
+  }
+  res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
+});
+
+app.post('/api/push/subscribe', async (req, res) => {
+  try {
+    const userId = req.headers['x-user-id'];
+    const subscription = req.body;
+    if (!userId) return res.status(401).json({ message: 'No se proporcionó el ID de usuario' });
+    if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+      return res.status(400).json({ message: 'Suscripción push inválida' });
+    }
+
+    await User.findByIdAndUpdate(userId, { $pull: { pushSubscriptions: { endpoint: subscription.endpoint } } });
+    await User.findByIdAndUpdate(userId, { $push: { pushSubscriptions: subscription } });
+    res.status(201).json({ message: 'Suscripción push registrada' });
+  } catch (error) {
+    console.error('Error al registrar la suscripción push:', error);
+    res.status(500).json({ message: 'No se pudo registrar la suscripción push' });
+  }
+});
+
+async function notifyAdminsAboutNewTask(task) {
+  if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY || !process.env.VAPID_SUBJECT) return;
+  const admins = await User.find({ role: 'admin', 'pushSubscriptions.0': { $exists: true } }).select('pushSubscriptions');
+  const payload = JSON.stringify({
+    notification: {
+      title: 'Nueva tarea',
+      body: `${task.userId.name} creó la tarea "${task.name}".`,
+      icon: '/icons/icon-192.svg',
+      data: { url: '/' }
+    }
+  });
+
+  await Promise.all(admins.flatMap(admin => admin.pushSubscriptions.map(async subscription => {
+    try {
+      await webpush.sendNotification(subscription, payload);
+    } catch (error) {
+      if (error.statusCode === 404 || error.statusCode === 410) {
+        await User.updateOne({ _id: admin._id }, { $pull: { pushSubscriptions: { endpoint: subscription.endpoint } } });
+      } else {
+        console.error('Error al enviar notificación push:', error.message);
+      }
+    }
+  })));
+}
 
 // Vista pública de tareas activas para compartirlas con otros usuarios.
 app.get('/api/tasks/public/:userId', async (req, res) => {
@@ -148,6 +205,7 @@ app.post('/api/tasks', async (req, res) => {
     const task = new Task(taskData);
     const savedTask = await task.save();
     const populatedTask = await Task.findById(savedTask._id).populate('userId', 'name');
+    void notifyAdminsAboutNewTask(populatedTask);
     res.status(201).json(populatedTask);
   } catch (error) {
     console.error('Error al crear la tarea:', error);

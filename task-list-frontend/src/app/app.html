@@ -330,7 +330,7 @@
       </div>
 
       <div *ngIf="!taskLoading() && filteredTasks().length > 0" class="user-list">
-        <article class="user-card" [class.deleted-task]="task.isDeleted" *ngFor="let task of filteredTasks(); trackBy: trackTaskById">
+        <article class="user-card" [class.deleted-task]="task.isDeleted" [class.completed-task]="task.status === 'completada'" *ngFor="let task of filteredTasks(); trackBy: trackTaskById">
           <ng-container *ngIf="editingTask()?._id !== task._id; else editTaskForm">
             <div class="task-details">
               <h3>{{ task.name }}</h3>
