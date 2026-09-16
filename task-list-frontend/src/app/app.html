@@ -12,7 +12,7 @@
   <!-- User profile and logout button -->
   <div *ngIf="currentUser() as user" class="header-actions">
     <div class="notification-menu-container" *ngIf="user.role === 'admin'">
-      <button type="button" class="notification-button" (click)="isNotificationMenuOpen.update(v => !v)" aria-label="Notificaciones" title="Notificaciones">
+      <button type="button" class="notification-button" [class.ringing]="unreadNotificationsCount() > 0" (click)="isNotificationMenuOpen.update(v => !v)" aria-label="Notificaciones" title="Notificaciones">
         &#128276;
         <span class="notification-count" *ngIf="unreadNotificationsCount() > 0">{{ unreadNotificationsCount() }}</span>
       </button>
