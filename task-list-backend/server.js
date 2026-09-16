@@ -121,7 +121,11 @@ async function notifyAdminsAboutNewTask(task) {
   const admins = await User.find({ role: 'admin' }).select('_id name email pushSubscriptions');
   const title = 'Nueva tarea creada';
   const message = `${task.userId.name} creó la tarea "${task.name}".`;
-  await Notification.insertMany(admins.map(admin => ({ userId: admin._id, title, message })));
+  try {
+    await Notification.insertMany(admins.map(admin => ({ userId: admin._id, title, message })));
+  } catch (error) {
+    console.error('Error al guardar notificaciones internas:', error.message);
+  }
 
   const configuredEmails = (process.env.ADMIN_NOTIFICATION_EMAILS || '')
     .split(',').map(email => email.trim().toLowerCase()).filter(Boolean);
@@ -129,6 +133,7 @@ async function notifyAdminsAboutNewTask(task) {
   if (smtpTransporter && recipients.length > 0) {
     try {
       await smtpTransporter.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER, to: recipients, subject: title, text: message });
+      console.log(`Correo de nueva tarea enviado a: ${recipients.join(', ')}`);
     } catch (error) {
       console.error('Error al enviar correo de nueva tarea:', error.message);
     }
@@ -278,7 +283,9 @@ app.post('/api/tasks', async (req, res) => {
     const task = new Task(taskData);
     const savedTask = await task.save();
     const populatedTask = await Task.findById(savedTask._id).populate('userId', 'name');
-    void notifyAdminsAboutNewTask(populatedTask);
+    void notifyAdminsAboutNewTask(populatedTask).catch(error => {
+      console.error('Error al notificar la nueva tarea:', error.message);
+    });
     res.status(201).json(populatedTask);
   } catch (error) {
     console.error('Error al crear la tarea:', error);
