@@ -546,6 +546,7 @@ export class App implements OnDestroy {
       const keyResponse = await fetch(`${API_BASE}/api/push/public-key`);
       if (!keyResponse.ok) return;
       const { publicKey } = await keyResponse.json();
+      await navigator.serviceWorker.ready;
       const subscription = await this.swPush.requestSubscription({ serverPublicKey: publicKey });
       await fetch(`${API_BASE}/api/push/subscribe`, {
         method: 'POST',
