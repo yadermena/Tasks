@@ -29,6 +29,26 @@ if (process.env.ADMIN_NOTIFICATION_EMAILS && !process.env.SMTP_HOST) {
   console.warn(`Correo de nuevas tareas configurado para ${process.env.ADMIN_NOTIFICATION_EMAILS}, pero SMTP está deshabilitado.`);
 }
 
+function createSmtpTransporter() {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASSWORD) return null;
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASSWORD.replace(/\s/g, '')
+    }
+  });
+}
+
+const smtpTransporter = createSmtpTransporter();
+if (smtpTransporter) {
+  smtpTransporter.verify()
+    .then(() => console.log('SMTP listo para enviar correos.'))
+    .catch(error => console.error(`SMTP no pudo autenticarse (${error.code || 'UNKNOWN'}): ${error.message}`));
+}
+
 if (!MONGO_URI) {
   console.error('Falta la variable de entorno MONGO_URI. Configúrala en task-list-backend/.env.');
   process.exit(1);
@@ -106,15 +126,9 @@ async function notifyAdminsAboutNewTask(task) {
   const configuredEmails = (process.env.ADMIN_NOTIFICATION_EMAILS || '')
     .split(',').map(email => email.trim().toLowerCase()).filter(Boolean);
   const recipients = [...new Set([...admins.map(admin => admin.email), ...configuredEmails])];
-  if (process.env.SMTP_HOST && recipients.length > 0) {
+  if (smtpTransporter && recipients.length > 0) {
     try {
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT || 587),
-        secure: process.env.SMTP_SECURE === 'true',
-        auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD } : undefined
-      });
-      await transporter.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER, to: recipients, subject: title, text: message });
+      await smtpTransporter.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER, to: recipients, subject: title, text: message });
     } catch (error) {
       console.error('Error al enviar correo de nueva tarea:', error.message);
     }
