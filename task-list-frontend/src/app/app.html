@@ -11,6 +11,20 @@
 
   <!-- User profile and logout button -->
   <div *ngIf="currentUser() as user" class="header-actions">
+    <div class="notification-menu-container" *ngIf="user.role === 'admin'">
+      <button type="button" class="notification-button" (click)="isNotificationMenuOpen.update(v => !v)" aria-label="Notificaciones" title="Notificaciones">
+        &#128276;
+        <span class="notification-count" *ngIf="unreadNotificationsCount() > 0">{{ unreadNotificationsCount() }}</span>
+      </button>
+      <div class="notification-menu" *ngIf="isNotificationMenuOpen()">
+        <strong>Notificaciones</strong>
+        <div *ngIf="notifications().length === 0" class="notification-empty">No hay notificaciones.</div>
+        <button type="button" class="notification-item" *ngFor="let notification of notifications()" [class.unread]="!notification.read" (click)="markNotificationAsRead(notification)">
+          <span>{{ notification.title }}</span>
+          <small>{{ notification.message }}</small>
+        </button>
+      </div>
+    </div>
     <div class="profile-menu-container">
       <div
         class="profile-avatar"
@@ -19,6 +33,7 @@
         [style.background-color]="avatarColors().get(user._id)?.background"
         [style.color]="avatarColors().get(user._id)?.text">
         {{ currentUserInitials() }}
+        <span class="avatar-notification-count" *ngIf="user.role === 'admin' && unreadNotificationsCount() > 0">{{ unreadNotificationsCount() }}</span>
       </div>
 
       <div class="profile-menu" *ngIf="isProfileMenuOpen()">

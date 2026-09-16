@@ -136,6 +136,8 @@ Para MongoDB Atlas:
 5. Sustituir usuario, contraseña y cluster en MONGO_URI.  
 Nunca publicar contraseñas, tokens ni cadenas mongodb+srv reales en Git. El archivo .env debe estar incluido en .gitignore. Si se comparte el repositorio, rotar inmediatamente cualquier credencial que haya quedado expuesta.  
 
+Los correos de los usuarios con rol `admin` reciben automáticamente el aviso de nueva tarea. También se pueden agregar destinatarios externos en `ADMIN_NOTIFICATION_EMAILS`, separados por coma, y configurar `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` y `SMTP_FROM`. Para Gmail se debe usar una clave de aplicación, no la contraseña normal.
+
 Para habilitar las notificaciones push de nuevas tareas para los administradores, generar las claves una sola vez desde `task-list-backend/`:
 
  npx web-push generate-vapid-keys

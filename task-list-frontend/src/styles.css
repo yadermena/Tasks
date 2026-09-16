@@ -1,1 +1,12 @@
 /* You can add global styles to this file, and also import other style files */
+.notification-menu-container { position: relative; }
+.notification-button { position: relative; width: 2.75rem; height: 2.75rem; padding: 0; border: 1px solid #cbd5e1; border-radius: 50%; background: #fff; font-size: 1.25rem; }
+.notification-count, .avatar-notification-count { position: absolute; display: grid; place-items: center; min-width: 1.15rem; height: 1.15rem; padding: 0 0.25rem; border-radius: 999px; background: #dc2626; color: #fff; font-size: 0.7rem; font-weight: 700; }
+.notification-count { top: -0.25rem; right: -0.25rem; }
+.avatar-notification-count { top: -0.35rem; right: -0.35rem; }
+.notification-menu { position: absolute; top: calc(100% + 0.75rem); right: 0; z-index: 1002; width: min(22rem, calc(100vw - 2rem)); padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 0.75rem; background: #fff; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15); }
+.notification-item { display: block; width: 100%; margin-top: 0.5rem; padding: 0.65rem; text-align: left; border-radius: 0.5rem; background: #f8fafc; }
+.notification-item.unread { background: #ecfdf5; }
+.notification-item span, .notification-item small { display: block; }
+.notification-item small { margin-top: 0.2rem; color: #475569; }
+.notification-empty { padding: 0.75rem 0; color: #64748b; }

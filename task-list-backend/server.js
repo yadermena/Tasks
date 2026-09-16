@@ -4,11 +4,13 @@ const Task = require('./models/task');
 const Role = require('./models/role');
 const User = require('./models/user');
 const Empresa = require('./models/empresa');
+const Notification = require('./models/notification');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const crypto = require('crypto');
 const webpush = require('web-push');
+const nodemailer = require('nodemailer');
 
 const app = express();
 
@@ -92,12 +94,33 @@ app.post('/api/push/subscribe', async (req, res) => {
 });
 
 async function notifyAdminsAboutNewTask(task) {
+  const admins = await User.find({ role: 'admin' }).select('_id name email pushSubscriptions');
+  const title = 'Nueva tarea creada';
+  const message = `${task.userId.name} creó la tarea "${task.name}".`;
+  await Notification.insertMany(admins.map(admin => ({ userId: admin._id, title, message })));
+
+  const configuredEmails = (process.env.ADMIN_NOTIFICATION_EMAILS || '')
+    .split(',').map(email => email.trim().toLowerCase()).filter(Boolean);
+  const recipients = [...new Set([...admins.map(admin => admin.email), ...configuredEmails])];
+  if (process.env.SMTP_HOST && recipients.length > 0) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT || 587),
+        secure: process.env.SMTP_SECURE === 'true',
+        auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD } : undefined
+      });
+      await transporter.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER, to: recipients, subject: title, text: message });
+    } catch (error) {
+      console.error('Error al enviar correo de nueva tarea:', error.message);
+    }
+  }
+
   if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY || !process.env.VAPID_SUBJECT) return;
-  const admins = await User.find({ role: 'admin', 'pushSubscriptions.0': { $exists: true } }).select('pushSubscriptions');
   const payload = JSON.stringify({
     notification: {
-      title: 'Nueva tarea',
-      body: `${task.userId.name} creó la tarea "${task.name}".`,
+      title,
+      body: message,
       icon: '/icons/icon-192.svg',
       data: { url: '/' }
     }
@@ -115,6 +138,28 @@ async function notifyAdminsAboutNewTask(task) {
     }
   })));
 }
+
+app.get('/api/notifications', async (req, res) => {
+  try {
+    const userId = req.headers['x-user-id'];
+    if (!userId) return res.status(401).json({ message: 'No se proporcionó el ID de usuario' });
+    res.json(await Notification.find({ userId }).sort({ createdAt: -1 }).limit(30));
+  } catch (error) {
+    res.status(500).json({ message: 'No se pudieron cargar las notificaciones' });
+  }
+});
+
+app.put('/api/notifications/:id/read', async (req, res) => {
+  try {
+    const notification = await Notification.findOneAndUpdate(
+      { _id: req.params.id, userId: req.headers['x-user-id'] }, { read: true }, { new: true }
+    );
+    if (!notification) return res.status(404).json({ message: 'Notificación no encontrada' });
+    res.json(notification);
+  } catch (error) {
+    res.status(500).json({ message: 'No se pudo marcar la notificación' });
+  }
+});
 
 // Vista pública de tareas activas para compartirlas con otros usuarios.
 app.get('/api/tasks/public/:userId', async (req, res) => {

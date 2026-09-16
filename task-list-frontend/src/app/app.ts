@@ -64,6 +64,14 @@ interface CalendarDay {
   isToday: boolean;
 }
 
+interface AppNotification {
+  _id: string;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+}
+
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -334,6 +342,10 @@ export class App implements OnDestroy {
   protected readonly calendarEventTitle = signal('');
   protected readonly calendarEventDate = signal(this.toDateKey(new Date()));
   private timerIntervalId: ReturnType<typeof setInterval> | null = null;
+  private notificationIntervalId: ReturnType<typeof setInterval> | null = null;
+  protected readonly notifications = signal<AppNotification[]>([]);
+  protected readonly isNotificationMenuOpen = signal(false);
+  protected readonly unreadNotificationsCount = computed(() => this.notifications().filter(notification => !notification.read).length);
 
   protected readonly calendarMonthLabel = computed(() => this.calendarMonth().toLocaleDateString('es-ES', {
     month: 'long',
@@ -404,6 +416,7 @@ export class App implements OnDestroy {
         this.timerTick.set(Date.now());
         this.notifyExpiredTasks();
       }, 1000);
+      this.notificationIntervalId = setInterval(() => void this.loadNotifications(), 30000);
     } else {
       void this.loadUsers();
       void this.loadEmpresas();
@@ -414,6 +427,7 @@ export class App implements OnDestroy {
     if (isPlatformBrowser(this.platformId)) {
       document.removeEventListener('click', this.onDocumentClick.bind(this));
       if (this.timerIntervalId) clearInterval(this.timerIntervalId);
+      if (this.notificationIntervalId) clearInterval(this.notificationIntervalId);
     }
   }
 
@@ -485,6 +499,7 @@ export class App implements OnDestroy {
     localStorage.setItem('currentUserId', user._id);
     this.currentUser.set(user);
     void this.loadTasks(); // Load tasks for the newly "logged-in" user
+    void this.loadNotifications();
     if (user.role === 'admin') {
       void this.registerAdminPushSubscription(user);
     }
@@ -492,6 +507,28 @@ export class App implements OnDestroy {
       void this.loadEmpresas();
     }
     this.isSidebarOpen.set(false);
+  }
+
+  private async loadNotifications() {
+    const user = this.currentUser();
+    if (!user || user.role !== 'admin') return;
+    try {
+      const response = await fetch(`${API_BASE}/api/notifications`, {
+        headers: { 'x-user-id': user._id }, cache: 'no-cache'
+      });
+      if (response.ok) this.notifications.set(await response.json());
+    } catch {
+      // Notification polling must not interrupt the task dashboard.
+    }
+  }
+
+  protected async markNotificationAsRead(notification: AppNotification) {
+    const user = this.currentUser();
+    if (!user || notification.read) return;
+    await fetch(`${API_BASE}/api/notifications/${notification._id}/read`, {
+      method: 'PUT', headers: { 'x-user-id': user._id }
+    });
+    this.notifications.update(current => current.map(item => item._id === notification._id ? { ...item, read: true } : item));
   }
 
   private async registerAdminPushSubscription(user: User) {
@@ -580,6 +617,7 @@ export class App implements OnDestroy {
     this.currentUser.set(null);
     this.realUser.set(null); // Clear real user on full logout
     this.tasks.set([]);
+    this.notifications.set([]);
     this.adminView.set('users');
     this.selectedEmpresa.set(null);
     this.isSidebarOpen.set(false);
