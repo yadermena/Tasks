@@ -25,6 +25,10 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env
   console.warn('Web Push deshabilitado: faltan variables VAPID.');
 }
 
+if (process.env.ADMIN_NOTIFICATION_EMAILS && !process.env.SMTP_HOST) {
+  console.warn(`Correo de nuevas tareas configurado para ${process.env.ADMIN_NOTIFICATION_EMAILS}, pero SMTP está deshabilitado.`);
+}
+
 if (!MONGO_URI) {
   console.error('Falta la variable de entorno MONGO_URI. Configúrala en task-list-backend/.env.');
   process.exit(1);
@@ -143,6 +147,14 @@ app.get('/api/notifications', async (req, res) => {
   try {
     const userId = req.headers['x-user-id'];
     if (!userId) return res.status(401).json({ message: 'No se proporcionó el ID de usuario' });
+    await Notification.deleteMany({
+      userId,
+      read: true,
+      $or: [
+        { readAt: { $lte: new Date(Date.now() - 15 * 60 * 1000) } },
+        { readAt: null, createdAt: { $lte: new Date(Date.now() - 15 * 60 * 1000) } }
+      ]
+    });
     res.json(await Notification.find({ userId }).sort({ createdAt: -1 }).limit(30));
   } catch (error) {
     res.status(500).json({ message: 'No se pudieron cargar las notificaciones' });
@@ -152,7 +164,9 @@ app.get('/api/notifications', async (req, res) => {
 app.put('/api/notifications/:id/read', async (req, res) => {
   try {
     const notification = await Notification.findOneAndUpdate(
-      { _id: req.params.id, userId: req.headers['x-user-id'] }, { read: true }, { new: true }
+      { _id: req.params.id, userId: req.headers['x-user-id'] },
+      { read: true, readAt: new Date() },
+      { new: true }
     );
     if (!notification) return res.status(404).json({ message: 'Notificación no encontrada' });
     res.json(notification);

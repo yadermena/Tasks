@@ -69,6 +69,7 @@ interface AppNotification {
   title: string;
   message: string;
   read: boolean;
+  readAt: string | null;
   createdAt: string;
 }
 
@@ -529,6 +530,9 @@ export class App implements OnDestroy {
       method: 'PUT', headers: { 'x-user-id': user._id }
     });
     this.notifications.update(current => current.map(item => item._id === notification._id ? { ...item, read: true } : item));
+    setTimeout(() => {
+      this.notifications.update(current => current.filter(item => item._id !== notification._id));
+    }, 15 * 60 * 1000);
   }
 
   private async registerAdminPushSubscription(user: User) {

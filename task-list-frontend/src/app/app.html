@@ -33,7 +33,6 @@
         [style.background-color]="avatarColors().get(user._id)?.background"
         [style.color]="avatarColors().get(user._id)?.text">
         {{ currentUserInitials() }}
-        <span class="avatar-notification-count" *ngIf="user.role === 'admin' && unreadNotificationsCount() > 0">{{ unreadNotificationsCount() }}</span>
       </div>
 
       <div class="profile-menu" *ngIf="isProfileMenuOpen()">
