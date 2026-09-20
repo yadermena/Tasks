@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const Task = require('./models/task');
 const Role = require('./models/role');
@@ -120,7 +121,8 @@ app.post('/api/push/subscribe', async (req, res) => {
 async function notifyAdminsAboutNewTask(task) {
   const admins = await User.find({ role: 'admin' }).select('_id name email pushSubscriptions');
   const title = 'Nueva tarea creada';
-  const message = `${task.userId.name} creó la tarea "${task.name}".`;
+  const creatorName = task?.userId?.name || 'Un usuario';
+  const message = `${creatorName} creó la tarea "${task.name}".`;
   try {
     await Notification.insertMany(admins.map(admin => ({ userId: admin._id, title, message })));
   } catch (error) {
@@ -129,7 +131,10 @@ async function notifyAdminsAboutNewTask(task) {
 
   const configuredEmails = (process.env.ADMIN_NOTIFICATION_EMAILS || '')
     .split(',').map(email => email.trim().toLowerCase()).filter(Boolean);
-  const recipients = [...new Set([...admins.map(admin => admin.email), ...configuredEmails])];
+  const recipients = [...new Set([
+    ...admins.map(admin => admin.email),
+    ...configuredEmails
+  ].filter(email => typeof email === 'string' && email.trim()))];
   if (smtpTransporter && recipients.length > 0) {
     try {
       await smtpTransporter.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER, to: recipients, subject: title, text: message });
