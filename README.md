@@ -145,6 +145,8 @@ Para habilitar las notificaciones push de nuevas tareas para los administradores
  npx web-push generate-vapid-keys
 
 Copiar los valores generados a `VAPID_PUBLIC_KEY` y `VAPID_PRIVATE_KEY`, y configurar las mismas variables en el entorno de despliegue del backend. Los administradores deben iniciar sesión con un navegador compatible y aceptar el permiso de notificaciones.
+
+**Despliegue del backend:** el archivo `.env` es local y está ignorado por Git, por lo que sus variables no se suben al hacer `git push`. En Render, abre el servicio del backend y agrega las variables de `task-list-backend/.env.example` en **Environment**, especialmente `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` y `ADMIN_NOTIFICATION_EMAILS`. Guarda los cambios y haz un redeploy. Gmail requiere una clave de aplicación, no la contraseña normal. Comprueba `https://URL_DEL_BACKEND/api/health`: debe devolver `"smtpConfigured": true`; los logs deben mostrar `SMTP listo para enviar correos.`.
 **7. Instalación y ejecución local**  
 **7.1 Backend**  
 En una terminal:  

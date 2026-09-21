@@ -44,7 +44,9 @@ function createSmtpTransporter() {
 }
 
 const smtpTransporter = createSmtpTransporter();
-if (smtpTransporter) {
+if (!smtpTransporter) {
+  console.warn('SMTP deshabilitado: faltan SMTP_HOST, SMTP_USER o SMTP_PASSWORD.');
+} else {
   smtpTransporter.verify()
     .then(() => console.log('SMTP listo para enviar correos.'))
     .catch(error => console.error(`SMTP no pudo autenticarse (${error.code || 'UNKNOWN'}): ${error.message}`));
@@ -92,6 +94,14 @@ async function seedRoles() {
 }
 
 // --- RUTAS DE LA API ---
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    smtpConfigured: Boolean(smtpTransporter),
+    notificationRecipientsConfigured: Boolean(process.env.ADMIN_NOTIFICATION_EMAILS)
+  });
+});
 
 app.get('/api/push/public-key', (req, res) => {
   if (!process.env.VAPID_PUBLIC_KEY) {
