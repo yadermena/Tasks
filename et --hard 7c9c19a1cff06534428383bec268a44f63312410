@@ -1,0 +1,335 @@
+[33mcommit 7c9c19a1cff06534428383bec268a44f63312410[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mdevelop[m[33m, [m[1;31morigin/develop[m[33m)[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sun Sep 13 11:02:59 2026 -0600
+
+    Documentación técnica
+
+[33mcommit b8e456b92fa874b805dfe30b9ecad28d5784224a[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Fri Sep 11 23:05:45 2026 -0600
+
+    add timer for each task
+
+[33mcommit fa840f407239a07d02167b5dd329f5e47f2e8b88[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Fri Sep 11 12:50:52 2026 -0600
+
+    issues manifest.webmanifest for install in android and ios
+
+[33mcommit bb74735358ad05f5c61c66e69ab0cd9ff44b22ab[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Fri Sep 11 12:39:41 2026 -0600
+
+    Add manifest.webmanifest for install in android and ios
+
+[33mcommit bac972b79735cc0e3a608378b14bef69b5216ee9[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Thu Sep 10 22:34:44 2026 -0600
+
+    icono task
+
+[33mcommit 32d294ddd66c0eab6373d574d261bee838672508[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Thu Sep 10 22:14:51 2026 -0600
+
+    show factory in the card user
+
+[33mcommit fd8f011f7103f31761a91fb7cb80b9843b9ae59c[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Wed Sep 9 23:32:03 2026 -0600
+
+    boton resatuar en tarjeta de usuario
+
+[33mcommit d9670bb8f38a966fc65478a946e081e2e301f888[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Wed Sep 9 23:14:32 2026 -0600
+
+    button admin show number of admin
+
+[33mcommit e4922dbe79356b385d44ccfeb644f019bb7366b9[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Wed Sep 9 22:34:23 2026 -0600
+
+    Line divisora, panel y dashboard
+
+[33mcommit bad9cd2f38f1c93e40be56cd3ae00e4981dc43ad[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Wed Sep 9 13:07:13 2026 -0600
+
+    button delete verify css
+
+[33mcommit 2cf2358328ba440ea499a04329b83f02904de433[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Tue Sep 8 23:36:27 2026 -0600
+
+    Button permision
+
+[33mcommit 6db699a110dcd13d3f187de8cf455ee8af8bd85e[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Tue Sep 8 22:23:48 2026 -0600
+
+    Padding in button delete css
+
+[33mcommit d0a7717a09abc462641e5ae8da3f8a37711183b9[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Tue Sep 8 21:59:46 2026 -0600
+
+    Deploy
+
+[33mcommit 8f144f3d68098b405bc9f4f359971cab98de1bc0[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sun Sep 6 19:51:31 2026 -0600
+
+    Deploy render
+
+[33mcommit bb00034777460f6312e6aa1c5d2c4e22f86e1d6a[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sun Sep 6 19:05:35 2026 -0600
+
+    fix: config angular.json
+
+[33mcommit 9ff25e337e7067138652e5b3d460ea0c75de3f98[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sun Sep 6 18:39:50 2026 -0600
+
+    Deploy render
+
+[33mcommit 780ddfee2a25eb4448caa4e7804612969f90ded1[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sun Sep 6 18:38:07 2026 -0600
+
+    fix: deshabilita SSR y cambia outputMode a static
+
+[33mcommit 3739d87bb4a9f72846cf0ebf492dd98c3a898c99[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Wed Sep 2 00:54:45 2026 -0600
+
+    Path login
+
+[33mcommit ebd6faa1c281f84bd3bfa905e77ef43fd2097c94[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Fri Aug 28 23:57:08 2026 -0600
+
+    Botones contar usuario
+
+[33mcommit 4fd265a6d9ba948ee8fdcb449c0d52229a0f98e9[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Thu Aug 27 22:43:47 2026 -0600
+
+    Login component start
+
+[33mcommit 73f9820d58013f43c0f32512ee45dd67620353e0[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sun Aug 16 13:33:44 2026 -0600
+
+    Button list user
+
+[33mcommit 1cf1c3dff4992f005024f6b4f4ec09869624e1ff[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Fri Aug 14 23:01:52 2026 -0600
+
+    Validation button list user task
+
+[33mcommit 02bbc3f911b6ca581e897d080c35b76f5ba4b6f2[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Fri Aug 14 22:11:24 2026 -0600
+
+    Button permision for edit task and change status
+
+[33mcommit 319cfc3161eb20b1a08d492e84080b9a57921f82[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Thu Aug 13 23:32:40 2026 -0600
+
+    Validation
+
+[33mcommit fa7d8b478d78a7c761e3cecd7da6e53c2ef71d49[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Tue Aug 11 23:55:25 2026 -0600
+
+    menu select task for user
+
+[33mcommit bf51305f69f7533b4f5d625e771dee968c544058[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Tue Aug 11 23:43:02 2026 -0600
+
+    Button select factory
+
+[33mcommit 671310bec4d490b8df952e4a2fa53b81530942c6[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Tue Aug 11 23:26:26 2026 -0600
+
+    Button add factory issues resolve
+
+[33mcommit 3b3677b84ed803cf09d54982b7998368e1f047b8[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Mon Aug 10 00:47:45 2026 -0600
+
+    Validando botones para dasboard
+
+[33mcommit 9736828f7e636287de4d8902c9c9e2787f6d2323[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sun Aug 9 23:23:59 2026 -0600
+
+    Validacion de componentes
+
+[33mcommit 910d8fdf2ead66b7d20992f8953c8cb0746029f2[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sun Aug 9 15:12:05 2026 -0600
+
+    validaciones de botones
+
+[33mcommit 1e062308e90796652cb881d892d400a3bf54a1f4[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sat Aug 8 21:17:23 2026 -0600
+
+    working in the dashboard
+
+[33mcommit 9fed1226523114db6fc5001d665cd26c17960710[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Mon Aug 3 21:51:50 2026 -0600
+
+    Changing frontend basic to freamwork angular
+
+[33mcommit cf1f4ce6e4eb4b94962230eb9d634500498a5d18[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Wed Jul 29 23:48:37 2026 -0600
+
+    corrigiendo ruta
+
+[33mcommit 93db5f522ba04c6852ed9fd8ff545c1f2489536d[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sun Jul 26 02:17:36 2026 -0600
+
+    organizando archivos
+
+[33mcommit efc888c0078fb73a171f206172c14a3d2a23b23c[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sun Jul 26 02:15:01 2026 -0600
+
+    style: limpia estilos de interfaz
+
+[33mcommit 70bed8b0eb3c4c0e983fc2c3385740ac20b21e3b[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sun Jul 26 02:12:28 2026 -0600
+
+    style: limpia estilos de interfaz y reorganiza gitignore
+
+[33mcommit 082542ae88f65a6f42c9bc6724a6bc7cbe9f8338[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sun Jul 26 01:49:41 2026 -0600
+
+    Add button anular
+
+[33mcommit c9328dac6fc260e6c58318ff3d4e84a1bb2bcd7d[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sat Jul 25 14:06:58 2026 -0600
+
+    conection to cluster mongodb
+
+[33mcommit edf6698aba75f46b837d3d3ada3249e83e648235[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m
+Merge: 7f2f9d9 a469713
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sun Jul 19 18:17:26 2026 -0600
+
+    Resolve conflicto de integracion en main.js manteniendo semaforos
+
+[33mcommit 7f2f9d92c564371c596551adca391c7c4c7d9077[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sun Jul 19 17:58:23 2026 -0600
+
+    Fix: corrige sintaxis de conexion a mongodb en server.js
+
+[33mcommit a46971397bc5f05f8c724617a39229e3d3defbb4[m
+Merge: 67f4698 51000b8
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sun Jul 19 17:14:51 2026 -0600
+
+    Merge branch 'main' of https://github.com/yadermena/Tasks
+
+[33mcommit 67f46985b266c34b3d12c641fbd2345e8f8ad76a[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sun Jul 19 17:05:20 2026 -0600
+
+    docker
+
+[33mcommit 51000b8602d04bd9e798af3b95c2728107ac5439[m
+Author: Yader Mena <ydrmena27@hotmail.com>
+Date:   Wed Jul 15 00:07:12 2026 -0600
+
+    Update README with NVM and Node.js installation steps
+    
+    Added instructions for setting up NVM and Node.js.
+
+[33mcommit fc77b2fcdce7fdb46e2212d3622dcf6cd60d56c1[m
+Author: Yader Mena <ydrmena27@hotmail.com>
+Date:   Fri Jul 10 23:09:55 2026 -0600
+
+    Update README with installation instructions
+    
+    Added instructions for installing Node.js, curl, and NVM.
+
+[33mcommit dec98aa9b8fb5859836228b53ff82c7b7b71fa2d[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Sat Nov 8 01:29:32 2025 -0600
+
+    conexion a mongodb
+
+[33mcommit 197c884c93c02e8d0bbcf9a79fe028fc5a4af7ab[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Mon Oct 27 14:36:32 2025 -0600
+
+    Reestructura: mueve archivos del root a frontend/
+
+[33mcommit 3dbe305290e12ae8afe797a3ec37172574a70b08[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Mon Oct 27 14:36:32 2025 -0600
+
+    Reestructura: mueve archivos del root a frontend/
+
+[33mcommit 34bd772bde07b1ed6d583c3eb38c8ed5f49e5311[m
+Author: yadermena <yadermena>
+Date:   Tue Dec 17 12:11:12 2024 -0600
+
+    Agregar boton buscar
+
+[33mcommit ac7241a1b337841a0129a5cfd941ad9b7a70b475[m
+Author: yadermena <yadermena>
+Date:   Wed Oct 2 21:52:53 2024 -0600
+
+    Review
+
+[33mcommit b7bd9e43935842dd517adcdad1e848e4f649f875[m
+Author: yadermena <yadermena>
+Date:   Wed Oct 2 21:32:07 2024 -0600
+
+    New functions, buttom and event
+
+[33mcommit 9b0ae09307db44dce06d78cd729b9527e8ea6882[m
+Author: yadermena <yadermena>
+Date:   Tue Sep 24 20:05:17 2024 -0600
+
+    Test_deploy
+
+[33mcommit 83f212b65b5a3fe82a6d00922c381fcc62d8c73a[m
+Author: yadermena <yadermena>
+Date:   Mon Sep 23 21:31:29 2024 -0600
+
+    Creating service and backend
+
+[33mcommit 325cc23eb781b1a02480900c81e106c02015db19[m
+Author: yadermena <yadermena>
+Date:   Mon Sep 23 00:09:57 2024 -0600
+
+    space work
+
+[33mcommit 04c8dfd6ddd9e5a8001078f88daf3d493075df49[m
+Author: yadermena <yadermena>
+Date:   Sun Sep 22 23:43:12 2024 -0600
+
+    space work
+
+[33mcommit 1fa7e0ebe688e1d9ac767de131dcfc361017ee6b[m
+Author: yadermena <ydrmena27@hotmail.com>
+Date:   Fri Sep 20 23:13:18 2024 -0600
+
+    Initial commit

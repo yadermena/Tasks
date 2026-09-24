@@ -1,0 +1,974 @@
+<!-- Login Component View if not authenticated -->
+<ng-container *ngIf="!currentUser()">
+  <app-login
+    [expectedUserId]="sharedLoginUserId()"
+    (loginSuccess)="handleLoginSuccess($event)"></app-login>
+</ng-container>
+
+<main *ngIf="currentUser()" class="app-shell" [class.sidebar-open]="isSidebarOpen()">
+  <!-- Hamburger menu button -->
+  <button class="hamburger-menu" (click)="toggleSidebar()">☰</button>
+
+  <!-- User profile and logout button -->
+  <div *ngIf="currentUser() as user" class="header-actions">
+    <div class="notification-menu-container" *ngIf="user.role === 'admin'">
+      <button type="button" class="notification-button" [class.ringing]="unreadNotificationsCount() > 0" (click)="isNotificationMenuOpen.update(v => !v)" aria-label="Notificaciones" title="Notificaciones">
+        &#128276;
+        <span class="notification-count" *ngIf="unreadNotificationsCount() > 0">{{ unreadNotificationsCount() }}</span>
+      </button>
+      <div class="notification-menu" *ngIf="isNotificationMenuOpen()">
+        <strong>Notificaciones</strong>
+        <div *ngIf="notifications().length === 0" class="notification-empty">No hay notificaciones.</div>
+        <button type="button" class="notification-item" *ngFor="let notification of notifications()" [class.unread]="!notification.read" (click)="markNotificationAsRead(notification)">
+          <span>{{ notification.title }}</span>
+          <small>{{ notification.message }}</small>
+        </button>
+      </div>
+    </div>
+    <div class="profile-menu-container">
+      <div
+        class="profile-avatar"
+        (click)="isProfileMenuOpen.update(v => !v)"
+        [title]="user.name"
+        [style.background-color]="avatarColors().get(user._id)?.background"
+        [style.color]="avatarColors().get(user._id)?.text">
+        {{ currentUserInitials() }}
+      </div>
+
+      <div class="profile-menu" *ngIf="isProfileMenuOpen()">
+        <div class="profile-menu-header">
+          <strong>{{ user.name }}</strong>
+          <span>{{ user.email }}</span>
+        </div>
+        <hr>
+        <ul>
+          <li *ngIf="user.role === 'admin' || (user.role === 'editor' && user.canEditProfile)"><button (click)="editUser(user)">Configurar mi Perfil</button></li>
+          <li><button (click)="copyShareUrl(user)">Compartir URL</button></li>
+          <li><button (click)="viewMyTasks(user)">Ver mis tareas</button></li>
+          <li><button (click)="logout()">{{ realUser()?.role === 'admin' && currentUser()?._id !== realUser()?._id ? 'Volver al Panel' : 'Cerrar Sesión' }}</button></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" [class.open]="isSidebarOpen()">
+    <div class="sidebar-header">
+      <h2>{{ realUser()?.role === 'admin' ? 'Panel Admin' : 'Usuarios' }}</h2>
+      <button class="close-sidebar" (click)="toggleSidebar()">×</button>
+    </div>
+
+    <!-- "Go back to admin panel" button for impersonating admins -->
+    <ul *ngIf="realUser()?.role === 'admin' && realUser()?._id !== currentUser()?._id" class="user-selection-list" style="margin-bottom: 1rem; flex-grow: 0;">
+      <li><button (click)="logout()">Volver al Panel Admin</button></li>
+    </ul>
+    <hr *ngIf="realUser()?.role === 'admin' && realUser()?._id !== currentUser()?._id">
+
+    <!-- Admin navigation -->
+    <ul class="user-selection-list" *ngIf="currentUser()?.role === 'admin'" style="margin-bottom: 1rem;">
+      <li><button [class.active]="adminView() === 'tasks'" (click)="setAdminView('tasks'); isSidebarOpen.set(false)">Tareas</button></li>
+      <li><button [class.active]="adminView() === 'users'" (click)="setAdminView('users'); isSidebarOpen.set(false)">Usuarios</button></li>
+      <li><button [class.active]="adminView() === 'empresas'" (click)="setAdminView('empresas'); isSidebarOpen.set(false)">Empresas</button></li>
+      <li><button [class.active]="adminView() === 'configuraciones'" (click)="setAdminView('configuraciones'); isSidebarOpen.set(false)">Configuraciones</button></li>
+    </ul>
+    <hr *ngIf="currentUser()?.role === 'admin'">
+    <h3 class="sidebar-subtitle" *ngIf="currentUser()?.role === 'admin'">Cambiar Usuario</h3>
+
+    <ul class="user-selection-list">
+      <li *ngIf="loading()">Cargando usuarios...</li>
+      <div *ngIf="error()" class="status-bar error">
+        {{ error() }}
+      </div>
+      <li *ngIf="!loading() && users().length === 0">No hay usuarios.</li>
+      <li *ngFor="let user of switchableUsers(); trackBy: trackById">
+        <button (click)="login(user)">
+          {{ user.name }} ({{ user.role }})
+        </button>
+      </li>
+    </ul>
+
+    <!-- Company Selection Section -->
+    <ng-container *ngIf="!realUser() || realUser()?.role !== 'admin'">
+      <hr>
+      <h3 class="sidebar-subtitle">Seleccionar Empresa</h3>
+      <ul class="user-selection-list" style="flex-grow: 0;">
+        <li *ngIf="loading()">Cargando tareas...</li>
+        <li *ngIf="!loading() && empresas().length === 0">No hay empresas.</li>
+        <li *ngFor="let empresa of empresas(); trackBy: trackEmpresaById">
+          <button (click)="selectEmpresa(empresa)" [class.active]="selectedEmpresa()?._id === empresa._id">
+            {{ empresa.name }}
+          </button>
+        </li>
+      </ul>
+    </ng-container>
+  </aside>
+
+  <div class="main-content">
+    <!-- View switcher for admin -->
+    <ng-container *ngIf="currentUser() === null">
+      <ng-container *ngTemplateOutlet="userAdmin"></ng-container>
+    </ng-container>
+
+    <!-- User Admin Panel -->
+    <ng-container *ngIf="currentUser()?.role === 'admin' && adminView() === 'users'">
+      <ng-container *ngTemplateOutlet="userAdmin"></ng-container>
+    </ng-container>
+
+    <!-- User profile edit form for non-admins (uses the userAdmin template) -->
+    <ng-container *ngIf="isUserFormVisible() && currentUser()?.role !== 'admin'">
+      <ng-container *ngTemplateOutlet="userAdmin"></ng-container>
+    </ng-container>
+
+    <!-- Empresa Admin Panel -->
+    <ng-container *ngIf="currentUser()?.role === 'admin' && adminView() === 'empresas'">
+      <ng-container *ngTemplateOutlet="empresaAdmin"></ng-container>
+    </ng-container>
+    <!-- Configuraciones Admin Panel -->
+    <ng-container *ngIf="currentUser()?.role === 'admin' && adminView() === 'configuraciones'">
+      <ng-container *ngTemplateOutlet="configuracionesAdmin"></ng-container>
+    </ng-container>
+
+    <!-- Task Dashboard: show if any user is "logged in" -->
+    <ng-container *ngIf="currentUser() as user">
+      <section *ngIf="(user.role !== 'admin' || adminView() === 'tasks') && !(isUserFormVisible() && user.role !== 'admin')" class="dashboard-panel task-dashboard">
+        <header class="dashboard-header">
+          <div *ngIf="user.role !== 'admin'">
+            <p class="eyebrow">Tareas de</p>
+            <h1>{{ user.name }}</h1>
+            <p>Gestionando tareas</p>
+          </div>
+        </header>
+
+    <div class="user-form-placeholder" *ngIf="!isTaskFormVisible()">
+      <button (click)="openAddTaskForm()">AGREGAR TAREA</button>
+    </div>
+
+    <!-- Form to add/edit a task -->
+    <form class="user-form" (submit)="onTaskSubmit($event)" *ngIf="isTaskFormVisible()">
+      <h2>Nueva Tarea</h2>
+      <div class="form-grid">
+        <div class="form-field-group">
+          <label for="task-name">Nombre de la tarea</label>
+          <input
+            id="task-name"
+            type="text"
+            placeholder="Nombre de la tarea"
+            aria-label="Nombre de la tarea"
+            [value]="taskForm().name"
+            (input)="updateTaskFormField('name', $any($event.target).value)"
+          />
+        </div>
+        <div class="form-field-group">
+          <label for="task-status">Estado</label>
+          <select
+            id="task-status"
+            [value]="taskForm().status"
+            (change)="updateTaskFormField('status', $any($event.target).value)"
+          >
+            <option value="ejecutando">Ejecutando</option>
+            <option value="acumulada">Acumulada</option>
+          </select>
+        </div>
+        <!-- User assignment dropdown for admins -->
+        <div class="form-field-group" *ngIf="currentUser()?.role === 'admin'">
+          <label for="task-user">Asignar a Usuario</label>
+          <select
+            id="task-user"
+            [value]="taskForm().userId"
+            (change)="updateTaskFormField('userId', $any($event.target).value)"
+          >
+            <option *ngFor="let user of users()" [value]="user._id">{{ user.name }}</option>
+          </select>
+        </div>
+        <div class="form-field-group timer-fields" *ngIf="currentUser()?.role === 'admin'">
+          <label>Temporizador</label>
+          <div class="timer-inputs">
+            <input type="number" min="0" max="7" placeholder="Días" aria-label="Días del temporizador" [value]="taskForm().timerDays ?? ''" (input)="updateTaskTimerPart('timerDays', $any($event.target).value)" />
+            <input type="number" min="0" max="23" placeholder="Horas" aria-label="Horas del temporizador" [value]="taskForm().timerHours ?? ''" (input)="updateTaskTimerPart('timerHours', $any($event.target).value)" />
+            <input type="number" min="0" max="59" placeholder="Minutos" aria-label="Minutos del temporizador" [value]="taskForm().timerMinutes ?? ''" (input)="updateTaskTimerPart('timerMinutes', $any($event.target).value)" />
+          </div>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit">Agregar Tarea</button>
+        <button type="button" class="secondary" (click)="cancelEditTask()">Cancelar</button>
+      </div>
+    </form>
+
+    <!-- Task Summary Panel -->
+    <section class="task-summary-panel">
+      <button
+        type="button"
+        class="summary-card summary-card--ejecutando"
+        [class.active]="currentFilterStatus() === 'ejecutando'"
+        (click)="setFilterStatus('ejecutando')"
+      >
+        <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
+          <circle cx="32" cy="32" r="22" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="80 18" transform="rotate(-90 32 32)" />
+          <path d="M32 18v14l10 7" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <h4>Ejecutando</h4>
+        <p>{{ runningTasksCount() }}</p>
+      </button>
+      <button
+        type="button"
+        class="summary-card summary-card--acumulada"
+        [class.active]="currentFilterStatus() === 'acumulada'"
+        (click)="setFilterStatus('acumulada')"
+      >
+        <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M18 20h28v8H18zm0 12h28v8H18zm0 12h28v8H18z" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M21 15l4 4 8-8" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+        </svg>
+        <h4>Acumulada</h4>
+        <p>{{ accumulatedTasksCount() }}</p>
+      </button>
+      <button type="button" class="summary-card summary-card--completada" [class.active]="currentFilterStatus() === 'completada'" (click)="setFilterStatus('completada')">
+        <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
+          <circle cx="32" cy="32" r="22" fill="none" stroke="currentColor" stroke-width="3.2"/>
+          <path d="M24 33l6 6 12-15" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <h4>Completada</h4>
+        <p>{{ completedTasksCount() }}</p>
+      </button>
+      <button
+        type="button"
+        class="summary-card"
+        *ngIf="currentUser()?.role === 'admin'"
+        [class.active]="currentFilterStatus() === 'eliminadas'"
+        (click)="setFilterStatus('eliminadas')"
+      >
+        <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
+          <circle cx="32" cy="32" r="22" fill="none" stroke="currentColor" stroke-width="3.2"/>
+          <path d="M24 24l16 16M40 24L24 40" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+        </svg>
+        <h4>Eliminadas</h4>
+        <p>{{ deletedTasksCount() }}</p>
+      </button>
+      <button type="button" class="summary-card show-all" [class.active]="currentFilterStatus() === 'all'" (click)="setFilterStatus('all')">
+        <h4>Mostrar Todo</h4>
+      </button>
+    </section>
+
+    <button type="button" class="agenda-toggle" (click)="isCalendarOpen.update(value => !value)" [attr.aria-expanded]="isCalendarOpen()">
+      Agenda
+    </button>
+
+    <section class="calendar-panel" *ngIf="isCalendarOpen()" aria-labelledby="calendar-title">
+      <div class="calendar-header">
+        <div>
+          <p class="eyebrow">Agenda</p>
+          <h2 id="calendar-title">Eventos importantes</h2>
+        </div>
+        <div class="calendar-navigation">
+          <button type="button" class="calendar-nav-button" (click)="previousCalendarMonth()" aria-label="Mes anterior">‹</button>
+          <strong>{{ calendarMonthLabel() }}</strong>
+          <button type="button" class="calendar-nav-button" (click)="nextCalendarMonth()" aria-label="Mes siguiente">›</button>
+          <button type="button" class="calendar-today-button" (click)="goToCurrentMonth()">Hoy</button>
+        </div>
+      </div>
+
+      <div class="calendar-layout">
+        <div class="calendar-grid" role="grid" aria-label="Calendario mensual">
+          <span class="calendar-weekday" *ngFor="let weekday of ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']">{{ weekday }}</span>
+          <button
+            type="button"
+            class="calendar-day"
+            *ngFor="let day of calendarDays()"
+            [class.outside-month]="!day.isCurrentMonth"
+            [class.today]="day.isToday"
+            [class.selected]="calendarEventDate() === day.date"
+            (click)="selectCalendarDate(day.date)"
+            [attr.title]="calendarDayEventLabel(day.date) || 'Sin eventos'"
+            [attr.aria-label]="day.date">
+            <span class="calendar-day-number">{{ day.day }}</span>
+            <span class="calendar-event" *ngFor="let calendarEvent of eventsForDate(day.date)" [class.calendar-event-hidden-on-select]="calendarEventDate() === day.date">
+              {{ calendarEvent.title }}
+              <span
+                class="calendar-event-remove"
+                *ngIf="currentUser()?.role === 'admin'"
+                (click)="$event.stopPropagation(); removeCalendarEvent(calendarEvent.id)"
+                role="button"
+                tabindex="0"
+                aria-label="Eliminar evento">×</span>
+            </span>
+            <span class="calendar-day-events-expanded" *ngIf="calendarEventDate() === day.date && eventsForDate(day.date).length > 0">
+              <span class="calendar-day-event-title">Eventos:</span>
+              <span class="calendar-day-event-item" *ngFor="let calendarEvent of eventsForDate(day.date)">{{ calendarEvent.title }}</span>
+            </span>
+          </button>
+        </div>
+
+        <form class="calendar-event-form" *ngIf="currentUser()?.role === 'admin'" (submit)="addCalendarEvent($event)">
+          <label for="calendar-event-date">Fecha seleccionada</label>
+          <input id="calendar-event-date" type="date" [value]="calendarEventDate()" (change)="selectCalendarDate($any($event.target).value)" />
+          <label for="calendar-event-title">Nuevo evento</label>
+          <input id="calendar-event-title" type="text" placeholder="Ej. Reunión con cliente" [value]="calendarEventTitle()" (input)="updateCalendarEventTitle($any($event.target).value)" />
+          <button type="submit">Agregar evento</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Task List -->
+    <section class="users-section">
+      <div class="users-toolbar">
+        <h2>Lista de Tareas</h2>
+        <div class="task-filters">
+          <div *ngIf="currentUser()?.role === 'admin'" class="custom-dropdown user-task-filter">
+            <button type="button" class="dropdown-toggle" (click)="isUserFilterDropdownOpen.set(!isUserFilterDropdownOpen())">
+              <span>{{ selectedTaskUserName() }}</span>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="dropdown-arrow">
+                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+              </svg>
+            </button>
+            <div class="dropdown-menu" *ngIf="isUserFilterDropdownOpen()">
+              <div class="task-user-search">
+                <input
+                  type="search"
+                  placeholder="Buscar usuario..."
+                  [value]="taskUserSearch()"
+                  (input)="updateTaskUserSearch($any($event.target).value)"
+                  aria-label="Buscar usuario en la lista"
+                />
+              </div>
+              <ul class="dropdown-options-list">
+                <li><button (click)="selectTaskUser('all')">Todos los usuarios</button></li>
+                <li *ngFor="let user of filteredTaskUsers()">
+                  <button (click)="selectTaskUser(user._id)">{{ user.name }}</button>
+                </li>
+                <li *ngIf="filteredTaskUsers().length === 0" class="no-user-results">No hay usuarios.</li>
+              </ul>
+            </div>
+          </div>
+          <input
+            type="search"
+            [placeholder]="currentUser()?.role === 'admin' ? 'Buscar tarea o usuario...' : 'Buscar tarea...'"
+            aria-label="Buscar tareas"
+            [value]="taskQuery()"
+            (input)="updateTaskQuery($any($event.target).value)"
+          />
+        </div>
+      </div>
+
+      <div *ngIf="taskLoading()" class="status-bar">Cargando tareas...</div>
+      <div *ngIf="!taskLoading() && error()" class="status-bar error">{{ error() }}</div>
+      <div *ngIf="!taskLoading() && !error() && tasks().length === 0" class="empty-state">
+        <p>Este usuario aún no tiene tareas.</p>
+      </div>
+      <div *ngIf="!taskLoading() && !error() && tasks().length > 0 && filteredTasks().length === 0" class="empty-state">
+        <p>No se encontraron tareas que coincidan con la búsqueda.</p>
+      </div>
+
+      <div *ngIf="!taskLoading() && filteredTasks().length > 0" class="user-list">
+        <article class="user-card" [class.deleted-task]="task.isDeleted" [class.completed-task]="task.status === 'completada'" *ngFor="let task of filteredTasks(); trackBy: trackTaskById">
+          <ng-container *ngIf="editingTask()?._id !== task._id; else editTaskForm">
+            <div class="task-details">
+              <h3>{{ task.name }}</h3>
+              <div class="status-container">
+                <span class="status-dot" [ngClass]="'status-' + task.status"></span>
+                <p>
+                  Estado: <span class="status-text">{{ task.status }}</span>
+                  <span class="task-company-badge" *ngIf="task.userId && getUserCompanies(task.userId._id)">
+                    | {{ getUserCompanies(task.userId._id) }}
+                  </span>
+                  <span *ngIf="task.isDeleted" class="deleted-indicator">(Eliminada)</span>
+                </p>
+              </div>
+              <p *ngIf="currentUser()?.role === 'admin' && task.userId" class="task-user">
+                Usuario: {{ task.userId.name }}
+              </p>
+              <p *ngIf="nextCalendarEventLabel()" class="task-next-event">
+                Próximo evento: {{ nextCalendarEventLabel() }}
+              </p>
+              <p *ngIf="task.timerEndsAt && !task.isDeleted" class="task-timer" [class.expired]="getTaskTimerLabel(task) === 'Tiempo agotado'">
+                Temporizador: {{ getTaskTimerLabel(task) }}
+              </p>
+            </div>
+            <div class="card-actions">
+              <select [value]="task.status" (change)="updateTaskStatus(task, $any($event.target).value)" aria-label="Cambiar estado de la tarea" [disabled]="(task.isDeleted || task.completed) && currentUser()?.role !== 'admin'">
+                <option value="ejecutando">Ejecutando</option>
+                <option value="acumulada">Acumulada</option>
+                <option value="completada">Completada</option>
+              </select>
+              <!-- Restaurar devuelve la tarea al estado inicial y requiere permiso administrativo. -->
+              <button
+                *ngIf="user.role === 'admin' || user.canRestoreTask"
+                type="button"
+                class="secondary"
+                (click)="restoreTask(task)">
+                Restaurar
+              </button>
+              <!-- Delete button for active tasks, requires admin role or canDelete permission-->
+              <button *ngIf="!task.isDeleted && (user.role === 'admin' || user.canDelete)" type="button" class="danger" (click)="deleteTask(task)">Eliminar</button>
+              <button *ngIf="!task.isDeleted && (user.role === 'admin' || user.canEditTask)" type="button" class="secondary" (click)="editTask(task)" [disabled]="task.status === 'completada'">Editar</button>
+            </div>
+          </ng-container>
+
+          <ng-template #editTaskForm>
+            <form class="user-form" (submit)="onTaskSubmit($event)" style="width: 100%; padding: 0; border: none; background: none; box-shadow: none;">
+              <h2 style="margin-top: 0;">Editar Tarea</h2>
+              <div class="form-grid">
+                <div class="form-field-group">
+                  <label [for]="'task-name-' + task._id">Nombre de la tarea</label>
+                  <input
+                    [id]="'task-name-' + task._id"
+                    type="text"
+                    placeholder="Nombre de la tarea"
+                    aria-label="Nombre de la tarea"
+                    [value]="taskForm().name"
+                    (input)="updateTaskFormField('name', $any($event.target).value)"
+                  />
+                </div>
+                <div class="form-field-group">
+                  <label [for]="'task-status-' + task._id">Estado</label>
+                  <select
+                    [id]="'task-status-' + task._id"
+                    [value]="taskForm().status"
+                    (change)="updateTaskFormField('status', $any($event.target).value)"
+                  >
+                    <option value="ejecutando">Ejecutando</option>
+                    <option value="acumulada">Acumulada</option>
+                  </select>
+                </div>
+                <div class="form-field-group" *ngIf="currentUser()?.role === 'admin'">
+                  <label [for]="'task-user-' + task._id">Asignar a Usuario</label>
+                  <select [id]="'task-user-' + task._id" [value]="taskForm().userId" (change)="updateTaskFormField('userId', $any($event.target).value)">
+                    <option *ngFor="let user of users()" [value]="user._id">{{ user.name }}</option>
+                  </select>
+                </div>
+                <div class="form-field-group timer-fields" *ngIf="currentUser()?.role === 'admin'">
+                  <label>Temporizador</label>
+                  <div class="timer-inputs">
+                    <input type="number" min="0" max="7" placeholder="Días" aria-label="Días del temporizador" [value]="taskForm().timerDays ?? ''" (input)="updateTaskTimerPart('timerDays', $any($event.target).value)" />
+                    <input type="number" min="0" max="23" placeholder="Horas" aria-label="Horas del temporizador" [value]="taskForm().timerHours ?? ''" (input)="updateTaskTimerPart('timerHours', $any($event.target).value)" />
+                    <input type="number" min="0" max="59" placeholder="Minutos" aria-label="Minutos del temporizador" [value]="taskForm().timerMinutes ?? ''" (input)="updateTaskTimerPart('timerMinutes', $any($event.target).value)" />
+                  </div>
+                </div>
+              </div>
+              <div class="form-actions">
+                <button type="submit">Guardar Cambios</button>
+                <button type="button" class="secondary" (click)="cancelEditTask()">Cancelar</button>
+              </div>
+            </form>
+          </ng-template>
+        </article>
+      </div>
+    </section>
+  </section>
+    </ng-container>
+
+  <!-- User Admin Dashboard if no user is "logged in" -->
+  <ng-template #userAdmin>
+    <section class="dashboard-panel">
+      <header class="dashboard-header" *ngIf="currentUser()?.role === 'admin' || currentUser() === null">
+        <div>
+          <p class="eyebrow">Administración</p>
+          <h1>{{ title() }}</h1>
+          <p>Administra usuarios, roles y accesos desde un solo lugar.</p>
+        </div>
+      </header>
+
+      <!-- User Summary Panel -->
+      <section class="task-summary-panel" *ngIf="currentUser()?.role === 'admin' || currentUser() === null">
+        <button
+          type="button"
+          class="summary-card summary-card--total"
+          [class.active]="userFilterStatus() === 'all'"
+          (click)="userFilterStatus.set('all')"
+        >
+          <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
+            <circle cx="32" cy="24" r="8" fill="none" stroke="currentColor" stroke-width="3.2"/>
+            <path d="M18 50c3-8 10-12 14-12s11 4 14 12" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
+          </svg>
+          <h4>Total Usuarios</h4>
+          <p>{{ totalUsersCount() }}</p>
+        </button>
+        <button
+          type="button"
+          class="summary-card summary-card--admin"
+          [class.active]="userFilterStatus() === 'admin'"
+          (click)="userFilterStatus.set('admin')"
+        >
+          <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
+            <path d="M32 18l16 9v10c0 8-5 15-16 19-11-4-16-11-16-19V27l16-9z" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round"/>
+            <path d="M27 32l4 4 8-9" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <h4>Admins</h4>
+          <p>{{ adminCount() }}</p>
+        </button>
+        <button
+          type="button"
+          class="summary-card summary-card--editor"
+          [class.active]="userFilterStatus() === 'editor'"
+          (click)="userFilterStatus.set('editor')"
+        >
+          <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
+            <path d="M20 42l7-7 11 11 17-18" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M18 18h28v28H18z" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round" opacity="0.8"/>
+          </svg>
+          <h4>Editores</h4>
+          <p>{{ editorCount() }}</p>
+        </button>
+        <button
+          type="button"
+          class="summary-card summary-card--viewer"
+          [class.active]="userFilterStatus() === 'viewer'"
+          (click)="userFilterStatus.set('viewer')"
+        >
+          <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
+            <ellipse cx="32" cy="32" rx="16" ry="11" fill="none" stroke="currentColor" stroke-width="3.2"/>
+            <circle cx="32" cy="32" r="5" fill="none" stroke="currentColor" stroke-width="3.2"/>
+          </svg>
+          <h4>Viewers</h4>
+          <p>{{ viewerCount() }}</p>
+        </button>
+      </section>
+
+      <div class="user-form-placeholder" *ngIf="!isUserFormVisible() && currentUser()?.role === 'admin'">
+        <button (click)="openAddUserForm(false)">AGREGAR USUARIO</button>
+      </div>
+
+      <ng-container *ngIf="isUserFormVisible()">
+        <form class="user-form" (submit)="onSubmit($event)">
+          <h2>{{ editingId() ? 'Editar usuario' : 'Agregar usuario' }}</h2>
+          <div class="form-grid">
+            <input
+              type="text"
+              placeholder="Nombre"
+              [value]="form().name"
+              (input)="updateField('name', $any($event.target).value)"
+              aria-label="Nombre del usuario"
+            />
+            <input
+              type="email"
+              placeholder="Correo"
+              [value]="form().email"
+              (input)="updateField('email', $any($event.target).value)"
+              aria-label="Correo del usuario"
+            />
+            <select *ngIf="currentUser()?.role === 'admin'" [value]="form().role" (change)="updateField('role', $any($event.target).value)">
+              <option value="admin">Admin</option>
+              <option value="editor">Editor</option>
+              <option value="viewer">Viewer</option>
+            </select>
+            <div class="password-input-container">
+              <input
+                [type]="showPassword() ? 'text' : 'password'"
+                [placeholder]="editingId() ? 'Nueva clave' : 'Clave'"
+                [value]="form().password"
+                (input)="updateField('password', $any($event.target).value)"
+                aria-label="Clave del usuario"
+                autocomplete="new-password"
+              />
+              <button type="button" class="show-password-btn" (click)="showPassword.update(v => !v)">
+                {{ showPassword() ? 'Ocultar' : 'Ver' }}
+              </button>
+            </div>
+          </div>
+          <!-- Company Assignment -->
+          <div class="form-field-group" *ngIf="form().role !== 'admin'">
+            <label>Asignar Empresas</label>
+            <div class="custom-dropdown">
+              <button type="button" class="dropdown-toggle" (click)="isCompanyDropdownOpen.set(!isCompanyDropdownOpen())">
+                <span>{{ selectedCompaniesText() }}</span>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="dropdown-arrow">
+                  <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+                </svg>
+              </button>
+              <div class="dropdown-menu" *ngIf="isCompanyDropdownOpen()">
+                <div class="checkbox-item" *ngFor="let empresa of empresas(); trackBy: trackEmpresaById">
+                  <input
+                    type="checkbox"
+                    [id]="'company-' + empresa._id"
+                    [checked]="form().companyIds.includes(empresa._id)"
+                    (change)="updateCompanySelection(empresa._id, $any($event.target).checked)"
+                  >
+                  <label [for]="'company-' + empresa._id">{{ empresa.name }}</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit">{{ editingId() ? 'Guardar cambios' : 'Crear usuario' }}</button>
+            <button type="button" class="secondary" (click)="cancelEdit()" *ngIf="!previousAdminView()">Cancelar</button>
+            <button type="button" class="secondary" (click)="backToPreviousAdminView()" *ngIf="previousAdminView()">Volver</button>
+          </div>
+        </form>
+      </ng-container>
+
+      <section class="users-section" *ngIf="currentUser()?.role === 'admin' || currentUser() === null">
+        <div class="users-toolbar">
+          <h2>Usuarios</h2>
+          <div class="user-search">
+            <button type="button" class="user-search-toggle" (click)="isUserSearchOpen.update(value => !value)" [attr.aria-expanded]="isUserSearchOpen()" aria-label="Buscar usuarios" title="Buscar usuarios">
+              <span aria-hidden="true">⌕</span>
+            </button>
+            <input
+              *ngIf="isUserSearchOpen()"
+              type="search"
+              placeholder="Buscar usuario..."
+              [value]="query()"
+              (input)="updateQuery($any($event.target).value)"
+              aria-label="Buscar usuarios"
+            />
+          </div>
+        </div>
+
+        <div class="status-bar" *ngIf="loading()">Cargando usuarios...</div>
+        <div class="status-bar error" *ngIf="error()">{{ error() }}</div>
+
+        <div class="empty-state" *ngIf="!loading() && filteredUsers().length === 0 && !(userFilterStatus() === 'admin' && filteredAdminUsers().length > 0)">
+          <p>No hay usuarios para mostrar.</p>
+        </div>
+
+        <!-- Seccion Administradores -->
+        <div class="users-section-group" *ngIf="!loading() && (userFilterStatus() === 'admin' || userFilterStatus() === 'all') && filteredAdminUsers().length > 0">
+          <h3 class="section-subtitle">Administradores</h3>
+          <div class="user-list">
+            <article class="user-card" *ngFor="let user of filteredAdminUsers(); trackBy: trackById">
+              <div class="user-info">
+                <button
+                  class="user-avatar-button"
+                  (click)="login(user)"
+                  [title]="'Ver tareas de ' + user.name"
+                  [style.background-color]="avatarColors().get(user._id)?.background"
+                  [style.color]="avatarColors().get(user._id)?.text">
+                  {{ getUserInitials(user) }}
+                </button>
+                <div>
+                  <h3>{{ user.name }}</h3>
+                  <p>{{ user.email }}</p>
+                  <div *ngIf="user.companies && user.companies.length > 0" class="user-company-list">
+                    <span *ngFor="let company of user.companies" class="company-badge">
+                      {{ company.name }}
+                    </span>
+                  </div>
+                  <p *ngIf="nextCalendarEventLabel()" class="user-next-event">Próximo evento: {{ nextCalendarEventLabel() }}</p>
+                  <p *ngIf="getUserTimerSummary(user._id)" class="user-timer-summary">{{ getUserTimerSummary(user._id) }}</p>
+                </div>
+              </div>
+              <div class="user-meta" *ngIf="currentUser()?.role === 'admin'">
+                <span class="role-badge" [ngClass]="'role-' + user.role">{{ user.role }}</span>
+                <div class="card-actions">
+                  <button type="button" class="secondary" (click)="editUser(user)">Editar</button>
+                  <button type="button" class="secondary" (click)="openPermissionsModal(user)">Permisos</button>
+                  <button type="button" class="danger" (click)="deleteUser(user)">Eliminar</button>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <!-- Seccion Editores -->
+        <div class="users-section-group" *ngIf="!loading() && filteredEditors().length > 0">
+          <h3 class="section-subtitle">Editores</h3>
+          <div class="user-list">
+            <article class="user-card" *ngFor="let user of filteredEditors(); trackBy: trackById">
+              <div class="user-info">
+                <button
+                  class="user-avatar-button"
+                  (click)="login(user)"
+                  [title]="'Ver tareas de ' + user.name"
+                  [style.background-color]="avatarColors().get(user._id)?.background"
+                  [style.color]="avatarColors().get(user._id)?.text">
+                  {{ getUserInitials(user) }}
+                </button>
+                <div>
+                  <h3>{{ user.name }}</h3>
+                  <p>{{ user.email }}</p>
+                  <div *ngIf="user.companies && user.companies.length > 0" class="user-company-list">
+                    <span *ngFor="let company of user.companies" class="company-badge">
+                      {{ company.name }}
+                    </span>
+                  </div>
+                  <p *ngIf="nextCalendarEventLabel()" class="user-next-event">Próximo evento: {{ nextCalendarEventLabel() }}</p>
+                  <p *ngIf="getUserTimerSummary(user._id)" class="user-timer-summary">{{ getUserTimerSummary(user._id) }}</p>
+                </div>
+              </div>
+              <div class="user-meta" *ngIf="currentUser()?.role === 'admin'">
+                <span class="role-badge" [ngClass]="'role-' + user.role">{{ user.role }}</span>
+                <div class="card-actions">
+                  <button type="button" class="secondary" (click)="editUser(user)">Editar</button>
+                  <button type="button" class="secondary" (click)="openPermissionsModal(user)">Permisos</button>
+                  <button type="button" class="danger" (click)="deleteUser(user)">Eliminar</button>                
+                </div>
+              </div>
+          </article>
+          </div>
+        </div>
+
+        <!-- Seccion Viewers -->
+        <div class="users-section-group" *ngIf="!loading() && filteredViewers().length > 0">
+          <h3 class="section-subtitle">Viewers</h3>
+          <div class="user-list">
+            <article class="user-card" *ngFor="let user of filteredViewers(); trackBy: trackById">
+              <div class="user-info">
+                <button
+                  class="user-avatar-button"
+                  (click)="login(user)"
+                  [title]="'Ver tareas de ' + user.name"
+                  [style.background-color]="avatarColors().get(user._id)?.background"
+                  [style.color]="avatarColors().get(user._id)?.text">
+                  {{ getUserInitials(user) }}
+                </button>
+                <div>
+                  <h3>{{ user.name }}</h3>
+                  <p>{{ user.email }}</p>
+                  <div *ngIf="user.companies && user.companies.length > 0" class="user-company-list">
+                    <span *ngFor="let company of user.companies" class="company-badge">
+                      {{ company.name }}
+                    </span>
+                  </div>
+                  <p *ngIf="nextCalendarEventLabel()" class="user-next-event">Próximo evento: {{ nextCalendarEventLabel() }}</p>
+                  <p *ngIf="getUserTimerSummary(user._id)" class="user-timer-summary">{{ getUserTimerSummary(user._id) }}</p>
+                </div>
+              </div>
+              <div class="user-meta" *ngIf="currentUser()?.role === 'admin'">
+                <span class="role-badge" [ngClass]="'role-' + user.role">{{ user.role }}</span>
+                <div class="card-actions">
+                  <button type="button" class="secondary" (click)="editUser(user)">Editar</button>
+                  <button type="button" class="secondary" (click)="openPermissionsModal(user)">Permisos</button>
+                  <button type="button" class="danger" (click)='deleteUser(user)'>Eliminar</button>                
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+    </section>
+  </ng-template>
+  </div>
+
+  <!-- Configuraciones Admin Panel -->
+  <ng-template #configuracionesAdmin>
+    <section class="dashboard-panel">
+      <header class="dashboard-header">
+        <div>
+          <p class="eyebrow">Configuración</p>
+          <h1>Administradores</h1>
+          <p>Gestiona los usuarios administradores.</p>
+        </div>
+      </header>
+
+      <div class="user-form-placeholder" *ngIf="!isUserFormVisible()">
+        <button (click)="openAddUserForm(true)">AGREGAR ADMINISTRADOR</button>
+      </div>
+
+      <ng-container *ngIf="isUserFormVisible()">
+        <form class="user-form" (submit)="onSubmit($event)">
+          <h2>{{ editingId() ? 'Editar administrador' : 'Agregar administrador' }}</h2>
+          <div class="form-grid">
+            <input
+              type="text"
+              placeholder="Nombre"
+              [value]="form().name"
+              (input)="updateField('name', $any($event.target).value)"
+              aria-label="Nombre del usuario"
+            />
+            <input
+              type="email"
+              placeholder="Correo"
+              [value]="form().email"
+              (input)="updateField('email', $any($event.target).value)"
+              aria-label="Correo del usuario"
+            />
+            <div class="password-input-container">
+              <input
+                [type]="showPassword() ? 'text' : 'password'"
+                [placeholder]="editingId() ? 'Nueva clave' : 'Clave'"
+                [value]="form().password"
+                (input)="updateField('password', $any($event.target).value)"
+                aria-label="Clave del usuario"
+                autocomplete="new-password"
+              />
+              <button type="button" class="show-password-btn" (click)="showPassword.update(v => !v)">
+                {{ showPassword() ? 'Ocultar' : 'Ver' }}
+              </button>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit">{{ editingId() ? 'Guardar cambios' : 'Crear administrador' }}</button>
+            <button type="button" class="secondary" (click)="cancelEdit()" *ngIf="!previousAdminView()">Cancelar</button>
+            <button type="button" class="secondary" (click)="backToPreviousAdminView()" *ngIf="previousAdminView()">Volver</button>
+          </div>
+        </form>
+      </ng-container>
+
+      <section class="users-section">
+        <div class="users-toolbar">
+          <h2>Administradores</h2>
+          <input type="search" placeholder="Buscar administrador..." [value]="query()" (input)="updateQuery($any($event.target).value)" aria-label="Buscar administradores" />
+        </div>
+        <div class="status-bar" *ngIf="loading()">Cargando administradores...</div>
+        <div class="status-bar error" *ngIf="error()">{{ error() }}</div>
+        <div class="empty-state" *ngIf="!loading() && filteredAdminUsers().length === 0">
+          <p>No hay administradores para mostrar.</p>
+        </div>
+        <div class="user-list" *ngIf="!loading() && filteredAdminUsers().length > 0">
+          <article class="user-card" *ngFor="let user of filteredAdminUsers(); trackBy: trackById">
+            <div class="user-info">
+              <button
+                class="user-avatar-button"
+                (click)="login(user)"
+                [title]="'Ver tareas de ' + user.name"
+                [style.background-color]="avatarColors().get(user._id)?.background"
+                [style.color]="avatarColors().get(user._id)?.text">
+                {{ getUserInitials(user) }}
+              </button>
+              <div><h3>{{ user.name }}</h3><p>{{ user.email }}</p></div>
+            </div>
+            <div class="user-meta">
+              <span class="role-badge" [ngClass]="'role-' + user.role">{{ user.role }}</span>
+              <div class="card-actions"><button type="button" class="secondary" (click)="editUser(user)">Editar</button><button type="button" class="secondary" (click)="openPermissionsModal(user)">Permisos</button><button type="button" class="danger" (click)="deleteUser(user)">Eliminar</button></div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </section>
+  </ng-template>
+
+  <!-- Empresa Admin Dashboard -->
+  <ng-template #empresaAdmin>
+    <section class="dashboard-panel">
+      <header class="dashboard-header">
+        <div>
+          <p class="eyebrow">Administración</p>
+          <h1>Dashboard de Empresas</h1>
+          <p>Administra empresas desde un solo lugar.</p>
+        </div>
+      </header>
+
+      <div class="user-form-placeholder" *ngIf="!isEmpresaFormVisible()">
+        <button (click)="openAddEmpresaForm()">AGREGAR EMPRESA</button>
+      </div>
+
+      <ng-container *ngIf="isEmpresaFormVisible()">
+        <form class="user-form" (submit)="onEmpresaSubmit($event)">
+          <h2>{{ editingEmpresaId() ? 'Editar empresa' : 'Agregar empresa' }}</h2>
+          <div class="form-grid">
+            <input
+              type="text"
+              placeholder="Nombre de la empresa"
+              [value]="empresaForm().name"
+              (input)="updateEmpresaField('name', $any($event.target).value)"
+              aria-label="Nombre de la empresa"
+            />
+            <input
+              type="text"
+              placeholder="Rubro"
+              [value]="empresaForm().rubro"
+              (input)="updateEmpresaField('rubro', $any($event.target).value)"
+              aria-label="Rubro de la empresa"
+            />
+          </div>
+          <div class="form-actions">
+            <button type="submit">{{ editingEmpresaId() ? 'Guardar cambios' : 'Crear empresa' }}</button>
+            <button type="button" class="secondary" (click)="cancelEditEmpresa()">Cancelar</button>
+          </div>
+        </form>
+      </ng-container>
+
+      <section class="users-section">
+        <div class="users-toolbar">
+          <h2>Empresas</h2>
+          <input type="search" placeholder="Buscar empresa..." [value]="empresaQuery()" (input)="updateEmpresaQuery($any($event.target).value)" aria-label="Buscar empresas" />
+        </div>
+        <div class="status-bar" *ngIf="loading()">Cargando tareas...</div>
+        <div class="status-bar error" *ngIf="error()">{{ error() }}</div>
+        <div class="empty-state" *ngIf="!loading() && filteredEmpresas().length === 0"><p>No hay empresas para mostrar.</p></div>
+        <div class="user-list" *ngIf="!loading() && filteredEmpresas().length > 0">
+          <article class="user-card" *ngFor="let empresa of filteredEmpresas(); trackBy: trackEmpresaById">
+            <div>
+              <h3>{{ empresa.name }}</h3>
+              <p>Rubro: {{ empresa.rubro }}</p>
+              <p *ngIf="empresa.assignedUser" class="empresa-assigned-user">Asignado a: {{ empresa.assignedUser }}</p>
+            </div>
+            <div class="card-actions"><button type="button" class="secondary" (click)="editEmpresa(empresa)">Editar</button><button type="button" class="danger" (click)="deleteEmpresa(empresa)">Eliminar</button></div>
+          </article>
+        </div>
+      </section>
+    </section>
+  </ng-template>
+  <!-- Permissions Modal -->
+  <div class="modal-overlay" *ngIf="permissionsModalUser() as user">
+    <div class="modal-content">
+      <h2>Permisos para {{ user.name }}</h2>
+      <div class="permission-toggle">
+        <label for="can-delete">Eliminar Tareas</label>
+        <button
+          type="button"
+          (click)="toggleDeletePermission(user)"
+          [ngClass]="!!user.canDelete ? 'danger' : 'success'"
+        >
+          {{ !!user.canDelete ? 'Quitar Permiso' : 'Dar Permiso' }}
+        </button>
+      </div>
+      <div class="permission-toggle">
+        <label for="can-edit-profile">Editar Perfil</label>
+        <button
+          type="button"
+          (click)="toggleProfileEditPermission(user)"
+          [ngClass]="!!user.canEditProfile ? 'danger' : 'success'"
+        >
+          {{ !!user.canEditProfile ? 'Quitar Permiso' : 'Dar Permiso' }}
+        </button>
+      </div>
+      <div class="permission-toggle">
+        <label for="can-edit-task">Editar Tareas</label>
+        <button
+          type="button"
+          (click)="toggleTaskEditPermission(user)"
+          [ngClass]="!!user.canEditTask ? 'danger' : 'success'"
+        >
+          {{ !!user.canEditTask ? 'Quitar Permiso' : 'Dar Permiso' }}
+        </button>
+      </div>
+      <div class="permission-toggle">
+        <label for="can-set-executing">Cambiar a En Ejecución</label>
+        <button type="button" (click)="toggleTaskPermission(user, 'canSetExecuting')" [ngClass]="!!user.canSetExecuting ? 'danger' : 'success'">
+          {{ !!user.canSetExecuting ? 'Quitar Permiso' : 'Dar Permiso' }}
+        </button>
+      </div>
+      <div class="permission-toggle">
+        <label for="can-set-completed">Cambiar a Completada</label>
+        <button type="button" (click)="toggleTaskPermission(user, 'canSetCompleted')" [ngClass]="!!user.canSetCompleted ? 'danger' : 'success'">
+          {{ !!user.canSetCompleted ? 'Quitar Permiso' : 'Dar Permiso' }}
+        </button>
+      </div>
+      <div class="permission-toggle">
+        <label for="can-restore-task">Restaurar o Regresar al Estado Inicial</label>
+        <button type="button" (click)="toggleTaskPermission(user, 'canRestoreTask')" [ngClass]="!!user.canRestoreTask ? 'danger' : 'success'">
+          {{ !!user.canRestoreTask ? 'Quitar Permiso' : 'Dar Permiso' }}
+        </button>
+      </div>
+      <div class="modal-actions">
+        <button type="button" (click)="closePermissionsModal()" class="secondary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Login Modal -->
+  <div class="modal-overlay" *ngIf="loginModalUser() as user">
+    <div class="modal-content">
+      <h2>Iniciar sesión como {{ user.name }}</h2>
+      <p>Por favor, ingrese la clave para continuar.</p>
+      <form (submit)="$event.preventDefault(); attemptLogin()">
+        <div class="form-grid-single">
+          <input
+            type="password"
+            placeholder="Clave"
+            [value]="passwordInput()"
+            (input)="passwordInput.set($any($event.target).value)"
+            aria-label="Clave"
+            autocomplete="current-password"
+          />
+        </div>
+        <div *ngIf="loginError()" class="status-bar error" style="margin-top: 1rem;">{{ loginError() }}</div>
+        <div class="modal-actions">
+          <button type="button" (click)="closeLoginModal()" class="secondary">Cancelar</button>
+          <button type="submit">Ingresar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</main>
