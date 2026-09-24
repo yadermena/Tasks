@@ -199,23 +199,26 @@
     <section class="task-summary-panel">
       <button
         type="button"
-        class="summary-card"
+        class="summary-card summary-card--ejecutando"
         [class.active]="currentFilterStatus() === 'ejecutando'"
         (click)="setFilterStatus('ejecutando')"
       >
+        <span class="summary-card-icon" aria-hidden="true"></span>
         <h4>Ejecutando</h4>
         <p>{{ runningTasksCount() }}</p>
       </button>
       <button
         type="button"
-        class="summary-card"
+        class="summary-card summary-card--acumulada"
         [class.active]="currentFilterStatus() === 'acumulada'"
         (click)="setFilterStatus('acumulada')"
       >
+        <span class="summary-card-icon" aria-hidden="true"></span>
         <h4>Acumulada</h4>
         <p>{{ accumulatedTasksCount() }}</p>
       </button>
-      <button type="button" class="summary-card" [class.active]="currentFilterStatus() === 'completada'" (click)="setFilterStatus('completada')">
+      <button type="button" class="summary-card summary-card--completada" [class.active]="currentFilterStatus() === 'completada'" (click)="setFilterStatus('completada')">
+        <span class="summary-card-icon" aria-hidden="true"></span>
         <h4>Completada</h4>
         <p>{{ completedTasksCount() }}</p>
       </button>
@@ -226,6 +229,7 @@
         [class.active]="currentFilterStatus() === 'eliminadas'"
         (click)="setFilterStatus('eliminadas')"
       >
+        <span class="summary-card-icon" aria-hidden="true"></span>
         <h4>Eliminadas</h4>
         <p>{{ deletedTasksCount() }}</p>
       </button>
