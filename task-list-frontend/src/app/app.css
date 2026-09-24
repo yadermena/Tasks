@@ -212,7 +212,7 @@
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: 4.5rem 1rem 2rem;
+  padding: 4.4rem 0.9rem 1.3rem;
   box-sizing: border-box;
   min-width: 0;
   overflow-x: hidden;
@@ -1063,12 +1063,14 @@ button:hover {
 .task-summary-panel {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.85rem;
+  gap: 0.9rem;
   background: var(--panel-soft);
   border: 1px solid var(--line-soft);
   border-radius: 1.5rem;
-  padding: 0.85rem 0.7rem 0.9rem;
+  padding: 0.9rem 0.8rem 1rem;
   margin-bottom: 1.3rem;
+  width: 100%;
+  max-width: none;
 }
 
 .summary-card {
@@ -1079,13 +1081,13 @@ button:hover {
   align-items: center;
   justify-content: center;
   min-width: 0;
-  min-height: 9.2rem;
+  min-height: 9.4rem;
   width: 100%;
   cursor: pointer;
   background: rgba(255,255,255,0.1);
   border: 1px solid rgba(80, 68, 60, 0.08);
   border-radius: 1.15rem;
-  padding: 0.7rem 0.25rem;
+  padding: 0.8rem 0.35rem;
   text-align: center;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -1101,68 +1103,24 @@ button:hover {
 }
 
 .summary-card-icon {
-  position: relative;
   display: block;
   width: 3.5rem;
   height: 3.5rem;
-  margin: 0 auto 0.65rem;
-  border-radius: 50%;
-  border: 3px solid #2e3d47;
+  margin: 0 auto 0.7rem;
+  color: #2d3d45;
+  stroke: currentColor;
+  fill: none;
+  overflow: visible;
 }
 
-.summary-card--ejecutando .summary-card-icon::before {
-  content: "";
-  position: absolute;
-  inset: 0.85rem 0.85rem 0.85rem 0.85rem;
-  border: 3px solid #2e3d47;
-  border-right-color: transparent;
-  border-radius: 50%;
-  transform: rotate(28deg);
-}
-
-.summary-card--ejecutando .summary-card-icon::after {
-  content: "";
-  position: absolute;
-  width: 0.45rem;
-  height: 0.45rem;
-  background: #2e3d47;
-  border-radius: 50%;
-  top: 0.72rem;
-  right: 0.7rem;
-}
-
-.summary-card--acumulada .summary-card-icon::before,
-.summary-card--acumulada .summary-card-icon::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  width: 52%;
-  height: 37%;
-  border: 3px solid #2e3d47;
-  border-radius: 0.35rem;
-  transform: translateX(-50%);
-}
-
-.summary-card--acumulada .summary-card-icon::before {
-  top: 1.1rem;
-  border-bottom-width: 2px;
-}
-
-.summary-card--acumulada .summary-card-icon::after {
-  top: 1.8rem;
-  border-top-width: 2px;
-}
-
-.summary-card--completada .summary-card-icon::before {
-  content: "";
-  position: absolute;
-  left: 0.95rem;
-  top: 1.45rem;
-  width: 1.4rem;
-  height: 0.75rem;
-  border-left: 4px solid #2e3d47;
-  border-bottom: 4px solid #2e3d47;
-  transform: rotate(-45deg);
+.summary-card--ejecutando .summary-card-icon,
+.summary-card--acumulada .summary-card-icon,
+.summary-card--completada .summary-card-icon,
+.summary-card--total .summary-card-icon,
+.summary-card--admin .summary-card-icon,
+.summary-card--editor .summary-card-icon,
+.summary-card--viewer .summary-card-icon {
+  color: #2d3d45;
 }
 
 .summary-card h4 {
@@ -1245,6 +1203,23 @@ button:hover {
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+@media (min-width: 980px) {
+  .app-shell {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+
+  .task-summary-panel {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 1rem;
+    padding: 1rem 1rem 1.1rem;
+  }
+
+  .summary-card {
+    min-height: 10.5rem;
+  }
 }
 
 @media (max-width: 480px) {

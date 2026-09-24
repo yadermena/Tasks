@@ -203,7 +203,10 @@
         [class.active]="currentFilterStatus() === 'ejecutando'"
         (click)="setFilterStatus('ejecutando')"
       >
-        <span class="summary-card-icon" aria-hidden="true"></span>
+        <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
+          <circle cx="32" cy="32" r="22" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="80 18" transform="rotate(-90 32 32)" />
+          <path d="M32 18v14l10 7" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
         <h4>Ejecutando</h4>
         <p>{{ runningTasksCount() }}</p>
       </button>
@@ -213,12 +216,18 @@
         [class.active]="currentFilterStatus() === 'acumulada'"
         (click)="setFilterStatus('acumulada')"
       >
-        <span class="summary-card-icon" aria-hidden="true"></span>
+        <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M18 20h28v8H18zm0 12h28v8H18zm0 12h28v8H18z" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M21 15l4 4 8-8" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+        </svg>
         <h4>Acumulada</h4>
         <p>{{ accumulatedTasksCount() }}</p>
       </button>
       <button type="button" class="summary-card summary-card--completada" [class.active]="currentFilterStatus() === 'completada'" (click)="setFilterStatus('completada')">
-        <span class="summary-card-icon" aria-hidden="true"></span>
+        <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
+          <circle cx="32" cy="32" r="22" fill="none" stroke="currentColor" stroke-width="3.2"/>
+          <path d="M24 33l6 6 12-15" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
         <h4>Completada</h4>
         <p>{{ completedTasksCount() }}</p>
       </button>
@@ -229,7 +238,10 @@
         [class.active]="currentFilterStatus() === 'eliminadas'"
         (click)="setFilterStatus('eliminadas')"
       >
-        <span class="summary-card-icon" aria-hidden="true"></span>
+        <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
+          <circle cx="32" cy="32" r="22" fill="none" stroke="currentColor" stroke-width="3.2"/>
+          <path d="M24 24l16 16M40 24L24 40" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+        </svg>
         <h4>Eliminadas</h4>
         <p>{{ deletedTasksCount() }}</p>
       </button>
@@ -460,37 +472,53 @@
       <section class="task-summary-panel" *ngIf="currentUser()?.role === 'admin' || currentUser() === null">
         <button
           type="button"
-          class="summary-card"
+          class="summary-card summary-card--total"
           [class.active]="userFilterStatus() === 'all'"
           (click)="userFilterStatus.set('all')"
         >
+          <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
+            <circle cx="32" cy="24" r="8" fill="none" stroke="currentColor" stroke-width="3.2"/>
+            <path d="M18 50c3-8 10-12 14-12s11 4 14 12" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
+          </svg>
           <h4>Total Usuarios</h4>
           <p>{{ totalUsersCount() }}</p>
         </button>
         <button
           type="button"
-          class="summary-card"
+          class="summary-card summary-card--admin"
           [class.active]="userFilterStatus() === 'admin'"
           (click)="userFilterStatus.set('admin')"
         >
+          <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
+            <path d="M32 18l16 9v10c0 8-5 15-16 19-11-4-16-11-16-19V27l16-9z" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round"/>
+            <path d="M27 32l4 4 8-9" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
           <h4>Administradores</h4>
           <p>{{ adminCount() }}</p>
         </button>
         <button
           type="button"
-          class="summary-card"
+          class="summary-card summary-card--editor"
           [class.active]="userFilterStatus() === 'editor'"
           (click)="userFilterStatus.set('editor')"
         >
+          <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
+            <path d="M20 42l7-7 11 11 17-18" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M18 18h28v28H18z" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round" opacity="0.8"/>
+          </svg>
           <h4>Editores</h4>
           <p>{{ editorCount() }}</p>
         </button>
         <button
           type="button"
-          class="summary-card"
+          class="summary-card summary-card--viewer"
           [class.active]="userFilterStatus() === 'viewer'"
           (click)="userFilterStatus.set('viewer')"
         >
+          <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
+            <ellipse cx="32" cy="32" rx="16" ry="11" fill="none" stroke="currentColor" stroke-width="3.2"/>
+            <circle cx="32" cy="32" r="5" fill="none" stroke="currentColor" stroke-width="3.2"/>
+          </svg>
           <h4>Viewers</h4>
           <p>{{ viewerCount() }}</p>
         </button>
