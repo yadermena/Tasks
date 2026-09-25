@@ -342,7 +342,7 @@
           </div>
           <input
             type="search"
-            [placeholder]="currentUser()?.role === 'admin' ? 'Buscar tarea o usuario...' : 'Buscar tarea...'"
+            [placeholder]="currentUser()?.role === 'admin' ? 'Buscar tarea...' : 'Buscar tarea...'"
             aria-label="Buscar tareas"
             [value]="taskQuery()"
             (input)="updateTaskQuery($any($event.target).value)"
@@ -598,7 +598,27 @@
 
       <section class="users-section" *ngIf="currentUser()?.role === 'admin' || currentUser() === null">
         <div class="users-toolbar">
-          <h2>Usuarios</h2>
+          <div class="users-name-picker">
+            <button
+              type="button"
+              class="users-heading-toggle"
+              (click)="isUsersDropdownOpen.update(value => !value)"
+              [attr.aria-expanded]="isUsersDropdownOpen()"
+              aria-controls="users-name-list">
+              <span>Usuarios</span>
+              <span class="users-heading-arrow" aria-hidden="true">⌄</span>
+            </button>
+            <div class="users-name-list" id="users-name-list" *ngIf="isUsersDropdownOpen()">
+              <button
+                type="button"
+                class="user-name-option"
+                *ngFor="let user of usersForNameDropdown(); trackBy: trackById"
+                (click)="selectUserFromList(user)">
+                {{ user.name }}
+              </button>
+              <span class="users-name-empty" *ngIf="usersForNameDropdown().length === 0">No hay usuarios</span>
+            </div>
+          </div>
           <div class="user-search">
             <button type="button" class="user-search-toggle" (click)="isUserSearchOpen.update(value => !value)" [attr.aria-expanded]="isUserSearchOpen()" aria-label="Buscar usuarios" title="Buscar usuarios">
               <span aria-hidden="true">⌕</span>
@@ -745,7 +765,7 @@
       <header class="dashboard-header">
         <div>
           <p class="eyebrow">Configuración</p>
-          <h1>Administradores</h1>
+          <h3>Administradores</h3>
           <p>Gestiona los usuarios administradores.</p>
         </div>
       </header>

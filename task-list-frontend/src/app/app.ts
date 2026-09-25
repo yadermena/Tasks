@@ -85,6 +85,7 @@ export class App implements OnDestroy {
   protected readonly users = signal<User[]>([]);
   protected readonly query = signal('');
   protected readonly isUserSearchOpen = signal(false);
+  protected readonly isUsersDropdownOpen = signal(false);
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly isSidebarOpen = signal(false);
@@ -277,6 +278,7 @@ export class App implements OnDestroy {
 
   protected readonly filteredEditors = computed(() => this.filteredUsers().filter(u => u.role === 'editor'));
   protected readonly filteredViewers = computed(() => this.filteredUsers().filter(u => u.role === 'viewer'));
+  protected readonly usersForNameDropdown = computed(() => this.userFilterStatus() === 'admin' ? this.filteredAdminUsers() : this.filteredUsers());
 
   protected readonly switchableUsers = computed(() => {
     const realUser = this.realUser();
@@ -443,10 +445,18 @@ export class App implements OnDestroy {
     if (this.isUserFilterDropdownOpen() && !target.closest('.user-task-filter')) {
       this.isUserFilterDropdownOpen.set(false);
     }
+    if (this.isUsersDropdownOpen() && !target.closest('.users-name-picker')) {
+      this.isUsersDropdownOpen.set(false);
+    }
   }
 
   protected updateQuery(value: string) {
     this.query.set(value);
+  }
+
+  protected selectUserFromList(user: User) {
+    this.query.set(user.name);
+    this.isUsersDropdownOpen.set(false);
   }
 
   protected updateField(field: 'name' | 'email' | 'role' | 'password', value: string) {
