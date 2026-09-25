@@ -224,10 +224,10 @@
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  background: #ffffff;
-  border-radius: 1.25rem;
-  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
-  padding: 1.75rem;
+  background: var(--bg-cream);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 1rem;
 }
 
 .dashboard-header {
@@ -267,10 +267,10 @@
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  border: 1px solid #e2e8f0;
+  border: 0;
   border-radius: 0.75rem;
   padding: 0.75rem;
-  background: transparent;
+  background: var(--bg-cream);
 }
 
 .user-form-placeholder {
@@ -285,8 +285,8 @@
 
 .user-form-placeholder button {
   width: 100%;
-  padding: 1.2rem 1rem;
-  border-radius: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.85rem;
   background: linear-gradient(135deg, var(--bronze-1) 0%, var(--bronze-2) 100%);
   color: #fff;
   font-size: 1.05rem;
@@ -503,13 +503,13 @@ button:hover {
 .empty-state {
   padding: 1rem;
   border-radius: 0.75rem;
-  background: #fff;
+  background: var(--bg-cream);
   color: #334155;
 }
 
 .user-list {
   display: grid;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
 .section-subtitle {
@@ -528,9 +528,9 @@ button:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 1rem;
+  background: var(--bg-cream);
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
   padding: 1rem;
   gap: 1rem;
   width: 100%;
@@ -541,7 +541,21 @@ button:hover {
 
 .user-card.completed-task {
   border-left: 4px solid #22c55e;
-  background: #f0fdf4;
+}
+
+.task-status-card--ejecutando {
+  background: #fff7cc;
+  border-left: 4px solid #eab308;
+}
+
+.task-status-card--acumulada {
+  background: #ffe0e0;
+  border-left: 4px solid #ef4444;
+}
+
+.task-status-card--completada {
+  background: #dcfce7;
+  border-left: 4px solid #22c55e;
 }
 
 .user-card h3 {
@@ -708,7 +722,7 @@ button:hover {
 
   .task-summary-panel {
     grid-template-columns: repeat(3, 1fr);
-    gap: 0.4rem;
+    gap: 0.7rem;
     padding: 0;
     margin-bottom: 0.7rem;
   }
@@ -746,7 +760,7 @@ button:hover {
 
   .users-section .user-list {
     width: 100%;
-    gap: 0.5rem;
+    gap: 0.85rem;
   }
 
   .users-section-group {
@@ -841,6 +855,8 @@ button:hover {
 .agenda-toggle {
   width: 100%;
   margin-bottom: 1rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.7rem;
   background: #eef2ff;
   border: 1px solid #c7d2fe;
   color: #3730a3;
@@ -1083,7 +1099,7 @@ button:hover {
 .task-summary-panel {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.9rem;
+  gap: 1rem;
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -1104,8 +1120,8 @@ button:hover {
   min-height: 7rem;
   width: 100%;
   cursor: pointer;
-  background: rgba(255,255,255,0.1);
-  border: 1px solid rgba(80, 68, 60, 0.08);
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: 0.75rem;
   padding: 0.5rem 0.25rem;
   text-align: center;
@@ -1118,7 +1134,7 @@ button:hover {
 }
 
 .summary-card.active {
-  background: rgba(136, 120, 101, 0.08);
+  background: rgba(182, 141, 105, 0.14);
   border-color: rgba(79, 63, 46, 0.18);
 }
 
@@ -1159,8 +1175,8 @@ button:hover {
 }
 
 .summary-card.show-all {
-  background-color: rgba(255,255,255,0.08);
-  border-color: rgba(83, 83, 83, 0.12);
+  background-color: transparent;
+  border-color: transparent;
 }
 
 .deleted-task {

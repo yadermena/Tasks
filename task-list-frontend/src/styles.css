@@ -1,4 +1,17 @@
 /* You can add global styles to this file, and also import other style files */
+html,
+body,
+app-root {
+	margin: 0;
+	min-width: 100%;
+	min-height: 100%;
+	background: #f4efe8;
+}
+
+body {
+	min-height: 100vh;
+}
+
 .notification-menu-container { position: relative; }
 .notification-button { position: relative; width: 2.75rem; height: 2.75rem; padding: 0; border: 0 !important; border-radius: 50%; background: transparent !important; font-size: 1.25rem; line-height: 1; box-shadow: none !important; }
 .notification-button:hover { background: transparent; box-shadow: none; transform: none; }

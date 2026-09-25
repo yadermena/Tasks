@@ -360,7 +360,7 @@
       </div>
 
       <div *ngIf="!taskLoading() && filteredTasks().length > 0" class="user-list">
-        <article class="user-card" [class.deleted-task]="task.isDeleted" [class.completed-task]="task.status === 'completada'" *ngFor="let task of filteredTasks(); trackBy: trackTaskById">
+        <article class="user-card" [class.deleted-task]="task.isDeleted" [ngClass]="'task-status-card--' + task.status" *ngFor="let task of filteredTasks(); trackBy: trackTaskById">
           <ng-container *ngIf="editingTask()?._id !== task._id; else editTaskForm">
             <div class="task-details">
               <h3>{{ task.name }}</h3>
@@ -463,7 +463,7 @@
       <header class="dashboard-header" *ngIf="currentUser()?.role === 'admin' || currentUser() === null">
         <div>
           <p class="eyebrow">Administración</p>
-          <h1>{{ title() }}</h1>
+          <h3>{{ title() }}</h3>
           <p>Administra usuarios, roles y accesos desde un solo lugar.</p>
         </div>
       </header>
@@ -833,7 +833,7 @@
       <header class="dashboard-header">
         <div>
           <p class="eyebrow">Administración</p>
-          <h1>Dashboard de Empresas</h1>
+          <h3>Dashboard de Empresas</h3>
           <p>Administra empresas desde un solo lugar.</p>
         </div>
       </header>
