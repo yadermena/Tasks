@@ -2,6 +2,9 @@ import { Component, OnInit, OnDestroy, signal, Inject, PLATFORM_ID } from '@angu
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 
+const SHOW_BACK_BUTTON_KEY = 'task-list-show-back-button';
+const BACK_BUTTON_POSITION_KEY = 'task-list-back-button-position';
+
 const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:5000'
   : 'https://tasks-2x63.onrender.com';
@@ -58,6 +61,25 @@ interface CalendarEvent {
           </div>
         </article>
       </div>
+      <button
+        *ngIf="showBackButton()"
+        type="button"
+        class="floating-back-button"
+        [style.left.px]="backButtonPosition()?.left ?? null"
+        [style.top.px]="backButtonPosition()?.top ?? null"
+        [style.right]="backButtonPosition() ? 'auto' : null"
+        [style.bottom]="backButtonPosition() ? 'auto' : null"
+        (pointerdown)="startBackButtonDrag($event)"
+        (pointermove)="moveBackButton($event)"
+        (pointerup)="endBackButtonDrag($event)"
+        (pointercancel)="endBackButtonDrag($event)"
+        (click)="onBackButtonClick()"
+        aria-label="Regresar a la pantalla anterior"
+        title="Regresar">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
     </div>
   `,
   styles: [`
@@ -65,6 +87,36 @@ interface CalendarEvent {
       max-width: 800px;
       margin: 2rem auto;
       padding: 0 1rem;
+    }
+    .floating-back-button {
+      position: fixed;
+      right: 1rem;
+      bottom: 1rem;
+      z-index: 10;
+      display: grid;
+      width: 52px;
+      height: 52px;
+      padding: 0;
+      place-items: center;
+      border: 1px solid rgba(79, 70, 229, 0.4);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.28);
+      color: #3730a3;
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.16);
+      opacity: 0.42;
+      cursor: grab;
+      touch-action: none;
+      backdrop-filter: blur(5px);
+    }
+    .floating-back-button:hover {
+      opacity: 0.82;
+    }
+    .floating-back-button:active {
+      cursor: grabbing;
+    }
+    .floating-back-button svg {
+      width: 27px;
+      height: 27px;
     }
     .public-header {
       margin-bottom: 2rem;
@@ -145,6 +197,10 @@ export class PublicTasksComponent implements OnInit, OnDestroy {
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly nextEventLabel = signal('');
+  protected readonly showBackButton = signal(true);
+  protected readonly backButtonPosition = signal<{ left: number; top: number } | null>(null);
+  private backButtonDragStart: { pointerId: number; pointerX: number; pointerY: number; left: number; top: number } | null = null;
+  private backButtonWasDragged = false;
   private timerTick = signal(Date.now());
   private timerIntervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -155,6 +211,18 @@ export class PublicTasksComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     if (isPlatformBrowser(this.platformId)) {
+      this.showBackButton.set(localStorage.getItem(SHOW_BACK_BUTTON_KEY) !== 'false');
+      try {
+        const savedPosition = JSON.parse(localStorage.getItem(BACK_BUTTON_POSITION_KEY) ?? 'null') as { left?: number; top?: number } | null;
+        if (savedPosition && Number.isFinite(savedPosition.left) && Number.isFinite(savedPosition.top)) {
+          this.backButtonPosition.set({
+            left: Math.max(0, Math.min(savedPosition.left!, window.innerWidth - 52)),
+            top: Math.max(0, Math.min(savedPosition.top!, window.innerHeight - 52))
+          });
+        }
+      } catch {
+        this.backButtonPosition.set(null);
+      }
       this.timerIntervalId = setInterval(() => this.timerTick.set(Date.now()), 1000);
       this.loadNextCalendarEvent();
     }
@@ -169,6 +237,60 @@ export class PublicTasksComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     if (this.timerIntervalId) clearInterval(this.timerIntervalId);
+  }
+
+  protected goBack() {
+    if (typeof window === 'undefined') return;
+    const referrer = document.referrer;
+    if (referrer && new URL(referrer).origin === window.location.origin) {
+      window.history.back();
+    } else {
+      window.location.assign('/');
+    }
+  }
+
+  protected onBackButtonClick() {
+    if (this.backButtonWasDragged) {
+      this.backButtonWasDragged = false;
+      return;
+    }
+    this.goBack();
+  }
+
+  protected startBackButtonDrag(event: PointerEvent) {
+    if (event.button !== 0) return;
+    const button = event.currentTarget as HTMLButtonElement;
+    const rect = button.getBoundingClientRect();
+    this.backButtonDragStart = {
+      pointerId: event.pointerId,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      left: rect.left,
+      top: rect.top
+    };
+    this.backButtonWasDragged = false;
+    button.setPointerCapture(event.pointerId);
+  }
+
+  protected moveBackButton(event: PointerEvent) {
+    const start = this.backButtonDragStart;
+    if (!start || start.pointerId !== event.pointerId) return;
+    const deltaX = event.clientX - start.pointerX;
+    const deltaY = event.clientY - start.pointerY;
+    if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) this.backButtonWasDragged = true;
+    if (!this.backButtonWasDragged) return;
+
+    const left = Math.max(0, Math.min(start.left + deltaX, window.innerWidth - 52));
+    const top = Math.max(0, Math.min(start.top + deltaY, window.innerHeight - 52));
+    const position = { left, top };
+    this.backButtonPosition.set(position);
+    localStorage.setItem(BACK_BUTTON_POSITION_KEY, JSON.stringify(position));
+  }
+
+  protected endBackButtonDrag(event: PointerEvent) {
+    if (this.backButtonDragStart?.pointerId === event.pointerId) {
+      this.backButtonDragStart = null;
+    }
   }
 
   protected getTimerLabel(task: Task): string {

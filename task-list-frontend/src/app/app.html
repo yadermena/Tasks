@@ -259,7 +259,7 @@
         class="summary-card show-list"
         [class.active]="isTaskListNumbered()"
         [attr.aria-pressed]="isTaskListNumbered()"
-        (click)="isTaskListNumbered.update(value => !value)"
+        (click)="toggleTaskList()"
       >
         <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
           <path d="M25 17h28M25 32h28M25 47h28" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" />
@@ -366,6 +366,17 @@
             [value]="taskQuery()"
             (input)="updateTaskQuery($any($event.target).value)"
           />
+          <button
+            *ngIf="isTaskListNumbered()"
+            type="button"
+            class="task-order-toggle"
+            (click)="toggleTaskListOrder()"
+            [attr.aria-label]="taskListOrder() === 'asc' ? 'Ordenar por fecha, las más recientes primero' : 'Ordenar por fecha, las más antiguas primero'"
+            [title]="taskListOrder() === 'asc' ? 'Más antiguas primero' : 'Más recientes primero'">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 7V3m0 0L5 6m3-3 3 3M16 17v4m0 0 3-3m-3 3-3-3M5 10h6m2 4h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -378,10 +389,10 @@
         <p>No se encontraron tareas que coincidan con la búsqueda.</p>
       </div>
 
-      <ol *ngIf="!taskLoading() && filteredTasks().length > 0 && isTaskListNumbered()" class="task-name-list">
-        <li *ngFor="let task of filteredTasks(); let index = index; trackBy: trackTaskById">
+      <ol *ngIf="!taskLoading() && orderedFilteredTasks().length > 0 && isTaskListNumbered()" class="task-name-list">
+        <li *ngFor="let task of orderedFilteredTasks(); let index = index; trackBy: trackTaskById">
           <button type="button" class="task-name-link" (click)="showTaskCard(task._id)" [attr.aria-label]="'Ver tarjeta de tarea ' + task.name">
-            <span class="task-name-number">{{ index + 1 }}.</span>
+            <span class="task-name-number">{{ taskListOrder() === 'asc' ? index + 1 : orderedFilteredTasks().length - index }}.</span>
             {{ task.name }}
           </button>
         </li>
@@ -801,6 +812,11 @@
         </div>
       </header>
 
+      <label class="settings-toggle">
+        <input type="checkbox" [checked]="showBackButton()" (change)="setShowBackButton($any($event.target).checked)" />
+        <span>Mostrar botón Regresar</span>
+      </label>
+
       <div class="user-form-placeholder" *ngIf="!isUserFormVisible()">
         <button (click)="openAddUserForm(true)">AGREGAR ADMINISTRADOR</button>
       </div>
@@ -1023,3 +1039,23 @@
     </div>
   </div>
 </main>
+<button
+  *ngIf="showBackButton()"
+  type="button"
+  class="floating-back-button"
+  [class.is-positioned]="backButtonPosition()"
+  [style.left.px]="backButtonPosition()?.left ?? null"
+  [style.top.px]="backButtonPosition()?.top ?? null"
+  [style.right]="backButtonPosition() ? 'auto' : null"
+  [style.bottom]="backButtonPosition() ? 'auto' : null"
+  (pointerdown)="startBackButtonDrag($event)"
+  (pointermove)="moveBackButton($event)"
+  (pointerup)="endBackButtonDrag($event)"
+  (pointercancel)="endBackButtonDrag($event)"
+  (click)="onBackButtonClick()"
+  aria-label="Regresar a la pantalla anterior"
+  title="Regresar">
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  </svg>
+</button>

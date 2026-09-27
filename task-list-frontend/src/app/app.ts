@@ -6,6 +6,8 @@ import { LoginComponent } from './login/login';
 const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:5000' 
   : 'https://tasks-2x63.onrender.com';
+const SHOW_BACK_BUTTON_KEY = 'task-list-show-back-button';
+const BACK_BUTTON_POSITION_KEY = 'task-list-back-button-position';
 
 type UserRole = 'admin' | 'editor' | 'viewer';
 
@@ -101,6 +103,7 @@ export class App implements OnDestroy {
   protected readonly passwordInput = signal('');
   protected readonly loginError = signal<string | null>(null);
   protected readonly previousAdminView = signal<'tasks' | 'users' | 'empresas' | 'configuraciones' | null>(null);
+  protected readonly adminViewHistory = signal<Array<{ view: 'tasks' | 'users' | 'empresas' | 'configuraciones'; scrollY: number }>>([]);
   protected readonly isProfileMenuOpen = signal(false);
   protected readonly selectedEmpresa = signal<Empresa | null>(null);
   protected readonly sharedLoginUserId = signal<string | null>(null);
@@ -127,6 +130,18 @@ export class App implements OnDestroy {
   protected readonly selectedTaskUserId = signal<string | 'all'>('all');
   protected readonly taskUserSearch = signal('');
   protected readonly isTaskListNumbered = signal(false);
+  protected readonly taskListOrder = signal<'asc' | 'desc'>('asc');
+  protected readonly taskListReturn = signal(false);
+  private taskListReturnMode = false;
+  private taskListReturnScrollY = 0;
+  private empresaSelectionReturnScrollY = 0;
+  private taskFormReturnScrollY = 0;
+  private userFormReturnScrollY = 0;
+  private empresaFormReturnScrollY = 0;
+  protected readonly showBackButton = signal(true);
+  protected readonly backButtonPosition = signal<{ left: number; top: number } | null>(null);
+  private backButtonDragStart: { pointerId: number; pointerX: number; pointerY: number; left: number; top: number } | null = null;
+  private backButtonWasDragged = false;
 
   protected readonly tasksForSummary = computed(() => {
     const allTasks = this.tasks();
@@ -335,6 +350,14 @@ export class App implements OnDestroy {
     });
   });
 
+  protected readonly orderedFilteredTasks = computed(() => {
+    const tasks = [...this.filteredTasks()].sort((first, second) => {
+      const dateOrder = Date.parse(first.createdAt) - Date.parse(second.createdAt);
+      return dateOrder || first._id.localeCompare(second._id);
+    });
+    return this.taskListOrder() === 'asc' ? tasks : tasks.reverse();
+  });
+
   protected readonly totalUsersCount = computed(() => this.users().length);
   protected readonly adminCount = computed(() => this.users().filter(u => u.role === 'admin').length);
   protected readonly editorCount = computed(() => this.users().filter(u => u.role === 'editor').length);
@@ -392,6 +415,18 @@ export class App implements OnDestroy {
 
   constructor(@Inject(PLATFORM_ID) private platformId: object, private swPush: SwPush) {
     if (isPlatformBrowser(this.platformId)) {
+      this.showBackButton.set(localStorage.getItem(SHOW_BACK_BUTTON_KEY) !== 'false');
+      try {
+        const savedPosition = JSON.parse(localStorage.getItem(BACK_BUTTON_POSITION_KEY) ?? 'null') as { left?: number; top?: number } | null;
+        if (savedPosition && Number.isFinite(savedPosition.left) && Number.isFinite(savedPosition.top)) {
+          this.backButtonPosition.set({
+            left: Math.max(0, Math.min(savedPosition.left!, window.innerWidth - 52)),
+            top: Math.max(0, Math.min(savedPosition.top!, window.innerHeight - 52))
+          });
+        }
+      } catch {
+        this.backButtonPosition.set(null);
+      }
       // Check for loginAs parameter in URL
       const urlParams = new URLSearchParams(window.location.search);
       const loginAsId = urlParams.get('loginAs');
@@ -479,6 +514,7 @@ export class App implements OnDestroy {
   }
 
   protected openAddUserForm(isAdmin: boolean = false) {
+    this.userFormReturnScrollY = window.scrollY;
     this.resetForm();
     this.isUserFormVisible.set(true);
     if (isAdmin) {
@@ -488,6 +524,170 @@ export class App implements OnDestroy {
 
   protected toggleSidebar() {
     this.isSidebarOpen.update((isOpen) => !isOpen);
+  }
+
+  protected goBack() {
+    if (!this.currentUser()) {
+      if (typeof window !== 'undefined') {
+        const referrer = document.referrer;
+        if (referrer && new URL(referrer).origin === window.location.origin) {
+          window.history.back();
+        } else {
+          window.location.assign('/');
+        }
+      }
+      return;
+    }
+
+    if (this.loginModalUser()) {
+      this.closeLoginModal();
+      return;
+    }
+    if (this.permissionsModalUser()) {
+      this.closePermissionsModal();
+      return;
+    }
+    if (this.isNotificationMenuOpen()) {
+      this.isNotificationMenuOpen.set(false);
+      return;
+    }
+    if (this.isProfileMenuOpen()) {
+      this.isProfileMenuOpen.set(false);
+      return;
+    }
+    if (this.isSidebarOpen()) {
+      this.isSidebarOpen.set(false);
+      return;
+    }
+    if (this.editingTask() || this.isTaskFormVisible()) {
+      this.cancelEditTask();
+      this.restoreScrollPosition(this.taskFormReturnScrollY);
+      return;
+    }
+    if (this.isUserFormVisible()) {
+      if (this.previousAdminView()) {
+        this.backToPreviousAdminView();
+      } else {
+        this.cancelEdit();
+      }
+      this.restoreScrollPosition(this.userFormReturnScrollY);
+      return;
+    }
+    if (this.isEmpresaFormVisible()) {
+      this.cancelEditEmpresa();
+      this.restoreScrollPosition(this.empresaFormReturnScrollY);
+      return;
+    }
+    if (this.isCalendarOpen()) {
+      this.isCalendarOpen.set(false);
+      return;
+    }
+    if (this.taskListReturn()) {
+      this.isTaskListNumbered.set(this.taskListReturnMode);
+      this.taskListReturn.set(false);
+      this.restoreScrollPosition(this.taskListReturnScrollY);
+      return;
+    }
+    if (this.selectedEmpresa()) {
+      this.selectedEmpresa.set(null);
+      this.restoreScrollPosition(this.empresaSelectionReturnScrollY);
+      return;
+    }
+
+    const history = this.adminViewHistory();
+    if (this.currentUser()?.role === 'admin' && history.length > 0) {
+      const previousLocation = history[history.length - 1];
+      this.adminView.set(previousLocation.view);
+      this.adminViewHistory.set(history.slice(0, -1));
+      this.restoreScrollPosition(previousLocation.scrollY);
+      return;
+    }
+
+    if (this.currentUser()?.role === 'admin' && this.adminView() !== 'tasks') {
+      this.adminView.set('tasks');
+    }
+    if (this.isTaskDashboardVisible() && window.scrollY > 0) {
+      this.returnToLatestTask();
+      return;
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  private isTaskDashboardVisible() {
+    return this.currentUser()?.role !== 'admin' || this.adminView() === 'tasks';
+  }
+
+  private restoreScrollPosition(scrollY: number) {
+    setTimeout(() => window.scrollTo({ top: scrollY, behavior: 'smooth' }));
+  }
+
+  private returnToLatestTask() {
+    const latestTask = [...this.tasks()].sort((first, second) =>
+      Date.parse(second.createdAt) - Date.parse(first.createdAt)
+    )[0];
+
+    this.currentFilterStatus.set('all');
+    this.selectedTaskUserId.set('all');
+    this.taskQuery.set('');
+    this.isTaskListNumbered.set(false);
+    this.taskListReturn.set(false);
+
+    if (!latestTask) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    setTimeout(() => {
+      document.getElementById(`task-card-${latestTask._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  protected onBackButtonClick() {
+    if (this.backButtonWasDragged) {
+      this.backButtonWasDragged = false;
+      return;
+    }
+    this.goBack();
+  }
+
+  protected startBackButtonDrag(event: PointerEvent) {
+    if (event.button !== 0) return;
+    const button = event.currentTarget as HTMLButtonElement;
+    const rect = button.getBoundingClientRect();
+    this.backButtonDragStart = {
+      pointerId: event.pointerId,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      left: rect.left,
+      top: rect.top
+    };
+    this.backButtonWasDragged = false;
+    button.setPointerCapture(event.pointerId);
+  }
+
+  protected moveBackButton(event: PointerEvent) {
+    const start = this.backButtonDragStart;
+    if (!start || start.pointerId !== event.pointerId) return;
+    const deltaX = event.clientX - start.pointerX;
+    const deltaY = event.clientY - start.pointerY;
+    if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) this.backButtonWasDragged = true;
+    if (!this.backButtonWasDragged) return;
+
+    const left = Math.max(0, Math.min(start.left + deltaX, window.innerWidth - 52));
+    const top = Math.max(0, Math.min(start.top + deltaY, window.innerHeight - 52));
+    const position = { left, top };
+    this.backButtonPosition.set(position);
+    localStorage.setItem(BACK_BUTTON_POSITION_KEY, JSON.stringify(position));
+  }
+
+  protected endBackButtonDrag(event: PointerEvent) {
+    if (this.backButtonDragStart?.pointerId === event.pointerId) {
+      this.backButtonDragStart = null;
+    }
+  }
+
+  protected setShowBackButton(show: boolean) {
+    this.showBackButton.set(show);
+    localStorage.setItem(SHOW_BACK_BUTTON_KEY, String(show));
   }
 
   // --- User "Session" Management ---
@@ -510,6 +710,7 @@ export class App implements OnDestroy {
   private _performLogin(user: User) {
     localStorage.setItem('currentUserId', user._id);
     this.currentUser.set(user);
+    this.adminViewHistory.set([]);
     void this.loadTasks(); // Load tasks for the newly "logged-in" user
     void this.loadNotifications();
     if (user.role === 'admin') {
@@ -635,6 +836,7 @@ export class App implements OnDestroy {
     this.tasks.set([]);
     this.notifications.set([]);
     this.adminView.set('users');
+    this.adminViewHistory.set([]);
     this.selectedEmpresa.set(null);
     this.isSidebarOpen.set(false);
     // After full logout, always load all users for the login screen.
@@ -811,6 +1013,7 @@ export class App implements OnDestroy {
   }
 
   protected editUser(user: User) {
+    this.userFormReturnScrollY = window.scrollY;
     // Check if this action is coming from the profile menu (editing the current user)
     const isEditingCurrentUser = this.currentUser()?._id === user._id;
 
@@ -854,7 +1057,10 @@ export class App implements OnDestroy {
     const previousView = this.previousAdminView();
     this.cancelEdit();
     if (previousView) {
-      this.setAdminView(previousView);
+      this.adminView.set(previousView);
+      this.adminViewHistory.update(history =>
+        history[history.length - 1]?.view === previousView ? history.slice(0, -1) : history
+      );
     }
   }
 
@@ -913,10 +1119,15 @@ export class App implements OnDestroy {
   // --- Company Management Methods ---
 
   protected setAdminView(view: 'tasks' | 'users' | 'empresas' | 'configuraciones') {
+    const currentView = this.adminView();
+    if (currentView !== view) {
+      this.adminViewHistory.update(history => [...history, { view: currentView, scrollY: window.scrollY }]);
+    }
     this.adminView.set(view);
   }
 
   protected selectEmpresa(empresa: Empresa) {
+    this.empresaSelectionReturnScrollY = window.scrollY;
     if (this.selectedEmpresa()?._id === empresa._id) {
       this.selectedEmpresa.set(null);
     } else {
@@ -998,12 +1209,14 @@ export class App implements OnDestroy {
   }
 
   protected openAddEmpresaForm() {
+    this.empresaFormReturnScrollY = window.scrollY;
     this.resetEmpresaForm();
     this.isEmpresaFormVisible.set(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   protected editEmpresa(empresa: Empresa) {
+    this.empresaFormReturnScrollY = window.scrollY;
     this.editingEmpresaId.set(empresa._id);
     this.empresaForm.set({ name: empresa.name, rubro: empresa.rubro });
     this.isEmpresaFormVisible.set(true);
@@ -1041,6 +1254,9 @@ export class App implements OnDestroy {
   }
 
   protected showTaskCard(taskId: string) {
+    this.taskListReturnScrollY = window.scrollY;
+    this.taskListReturnMode = true;
+    this.taskListReturn.set(true);
     this.isTaskListNumbered.set(false);
     setTimeout(() => {
       document.getElementById(`task-card-${taskId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1059,6 +1275,17 @@ export class App implements OnDestroy {
 
   protected updateTaskQuery(value: string) {
     this.taskQuery.set(value);
+  }
+
+  protected toggleTaskList() {
+    this.taskListReturnMode = this.isTaskListNumbered();
+    this.taskListReturnScrollY = window.scrollY;
+    this.isTaskListNumbered.update(isNumbered => !isNumbered);
+    this.taskListReturn.set(true);
+  }
+
+  protected toggleTaskListOrder() {
+    this.taskListOrder.update(order => order === 'asc' ? 'desc' : 'asc');
   }
 
   protected getUserCompanyList(userId: string): NonNullable<User['companies']> {
@@ -1209,6 +1436,7 @@ export class App implements OnDestroy {
   }
 
   protected openAddTaskForm() {
+    this.taskFormReturnScrollY = window.scrollY;
     this.editingTask.set(null);
     this.taskForm.set({ name: '', status: 'ejecutando', userId: this.currentUser()?._id ?? '', timerDays: null, timerHours: null, timerMinutes: null });
     this.isTaskFormVisible.set(true);
