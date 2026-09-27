@@ -66,15 +66,6 @@ function hashPassword(password, salt) {
   return crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
 }
 
-mongoose.connect(MONGO_URI)
-  .then(() => {
-    console.log('¡Conectado a MongoDB con éxito!');
-    seedRoles();
-  })
-  .catch((error) => {
-    console.error('Error al conectar a MongoDB:', error);
-  });
-
 async function seedRoles() {
   try {
     const roles = [
@@ -96,8 +87,10 @@ async function seedRoles() {
 // --- RUTAS DE LA API ---
 
 app.get('/api/health', (req, res) => {
+  const databaseConnected = mongoose.connection.readyState === 1;
   res.json({
-    status: 'ok',
+    status: databaseConnected ? 'ok' : 'degraded',
+    databaseConnected,
     smtpConfigured: Boolean(smtpTransporter),
     notificationRecipientsConfigured: Boolean(process.env.ADMIN_NOTIFICATION_EMAILS)
   });
@@ -827,8 +820,20 @@ app.delete('/api/empresas/:id', async (req, res) => {
   }
 });
 
-// 9. Iniciar el servidor
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Servidor ejecutándose en el puerto ${PORT}`);
-});
+async function startServer() {
+  try {
+    await mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 10000 });
+    console.log('¡Conectado a MongoDB con éxito!');
+    await seedRoles();
+
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`Servidor ejecutándose en el puerto ${PORT}`);
+    });
+  } catch (error) {
+    console.error(`Error al conectar a MongoDB: ${error.message}`);
+    process.exitCode = 1;
+  }
+}
+
+void startServer();

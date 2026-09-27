@@ -75,6 +75,50 @@ interface AppNotification {
   createdAt: string;
 }
 
+type AdminView = 'tasks' | 'users' | 'empresas' | 'configuraciones';
+
+interface NavigationSnapshot {
+  adminView: AdminView;
+  scrollY: number;
+  sidebarOpen: boolean;
+  calendarOpen: boolean;
+  taskListNumbered: boolean;
+  taskListOrder: 'asc' | 'desc';
+  taskNameExpanded: boolean;
+  taskFormVisible: boolean;
+  taskForm: { name: string; status: Task['status']; userId: string; timerDays: number | null; timerHours: number | null; timerMinutes: number | null };
+  editingTask: Task | null;
+  userFormVisible: boolean;
+  userForm: { name: string; email: string; role: UserRole; password: string; companyIds: string[] };
+  editingId: string | null;
+  editingUser: User | null;
+  previousAdminView: AdminView | null;
+  empresaFormVisible: boolean;
+  empresaForm: { name: string; rubro: string };
+  editingEmpresaId: string | null;
+  selectedEmpresa: Empresa | null;
+  profileMenuOpen: boolean;
+  notificationMenuOpen: boolean;
+  loginModalUser: User | null;
+  permissionsModalUser: User | null;
+  companyDropdownOpen: boolean;
+  userFilterDropdownOpen: boolean;
+  usersDropdownOpen: boolean;
+  userSearchOpen: boolean;
+  userQuery: string;
+  userFilterStatus: 'all' | 'admin' | 'editor' | 'viewer';
+  filterStatus: 'all' | Task['status'] | 'eliminadas';
+  selectedTaskUserId: string | 'all';
+  taskQuery: string;
+  taskUserSearch: string;
+  empresaQuery: string;
+  calendarMonth: Date;
+  calendarEventDate: string;
+  calendarEventTitle: string;
+  error: string | null;
+  showPassword: boolean;
+}
+
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -97,13 +141,13 @@ export class App implements OnDestroy {
   protected readonly editingId = signal<string | null>(null);
   protected readonly editingUser = signal<User | null>(null);
   protected readonly permissionsModalUser = signal<User | null>(null);
-  protected readonly adminView = signal<'tasks' | 'users' | 'empresas' | 'configuraciones'>('users');
+  protected readonly adminView = signal<AdminView>('users');
   // Signals for admin login modal
   protected readonly loginModalUser = signal<User | null>(null);
   protected readonly passwordInput = signal('');
   protected readonly loginError = signal<string | null>(null);
-  protected readonly previousAdminView = signal<'tasks' | 'users' | 'empresas' | 'configuraciones' | null>(null);
-  protected readonly adminViewHistory = signal<Array<{ view: 'tasks' | 'users' | 'empresas' | 'configuraciones'; scrollY: number }>>([]);
+  protected readonly previousAdminView = signal<AdminView | null>(null);
+  private readonly navigationHistory = signal<NavigationSnapshot[]>([]);
   protected readonly isProfileMenuOpen = signal(false);
   protected readonly selectedEmpresa = signal<Empresa | null>(null);
   protected readonly sharedLoginUserId = signal<string | null>(null);
@@ -131,13 +175,7 @@ export class App implements OnDestroy {
   protected readonly taskUserSearch = signal('');
   protected readonly isTaskListNumbered = signal(false);
   protected readonly taskListOrder = signal<'asc' | 'desc'>('asc');
-  protected readonly taskListReturn = signal(false);
-  private taskListReturnMode = false;
-  private taskListReturnScrollY = 0;
-  private empresaSelectionReturnScrollY = 0;
-  private taskFormReturnScrollY = 0;
-  private userFormReturnScrollY = 0;
-  private empresaFormReturnScrollY = 0;
+  protected readonly isTaskNameExpanded = signal(false);
   protected readonly showBackButton = signal(true);
   protected readonly backButtonPosition = signal<{ left: number; top: number } | null>(null);
   private backButtonDragStart: { pointerId: number; pointerX: number; pointerY: number; left: number; top: number } | null = null;
@@ -450,6 +488,7 @@ export class App implements OnDestroy {
         }
       }
       this.loadCalendarEvents();
+      document.addEventListener('click', this.captureNavigationState, true);
       document.addEventListener('click', this.onDocumentClick.bind(this));
       this.timerIntervalId = setInterval(() => {
         this.timerTick.set(Date.now());
@@ -464,6 +503,7 @@ export class App implements OnDestroy {
 
   ngOnDestroy() {
     if (isPlatformBrowser(this.platformId)) {
+      document.removeEventListener('click', this.captureNavigationState, true);
       document.removeEventListener('click', this.onDocumentClick.bind(this));
       if (this.timerIntervalId) clearInterval(this.timerIntervalId);
       if (this.notificationIntervalId) clearInterval(this.notificationIntervalId);
@@ -485,6 +525,56 @@ export class App implements OnDestroy {
       this.isUsersDropdownOpen.set(false);
     }
   }
+
+  private readonly captureNavigationState = (event: MouseEvent) => {
+    const target = event.target;
+    if (!this.currentUser() || !(target instanceof Element)) return;
+    const control = target.closest('button, a, summary, select, [role="button"]');
+    if (!control || control.closest('.floating-back-button') || control.hasAttribute('data-navigation-ignore')) return;
+
+    const snapshot: NavigationSnapshot = {
+      adminView: this.adminView(),
+      scrollY: window.scrollY,
+      sidebarOpen: this.isSidebarOpen(),
+      calendarOpen: this.isCalendarOpen(),
+      taskListNumbered: this.isTaskListNumbered(),
+      taskListOrder: this.taskListOrder(),
+      taskNameExpanded: this.isTaskNameExpanded(),
+      taskFormVisible: this.isTaskFormVisible(),
+      taskForm: this.taskForm(),
+      editingTask: this.editingTask(),
+      userFormVisible: this.isUserFormVisible(),
+      userForm: this.form(),
+      editingId: this.editingId(),
+      editingUser: this.editingUser(),
+      previousAdminView: this.previousAdminView(),
+      empresaFormVisible: this.isEmpresaFormVisible(),
+      empresaForm: this.empresaForm(),
+      editingEmpresaId: this.editingEmpresaId(),
+      selectedEmpresa: this.selectedEmpresa(),
+      profileMenuOpen: this.isProfileMenuOpen(),
+      notificationMenuOpen: this.isNotificationMenuOpen(),
+      loginModalUser: this.loginModalUser(),
+      permissionsModalUser: this.permissionsModalUser(),
+      companyDropdownOpen: this.isCompanyDropdownOpen(),
+      userFilterDropdownOpen: this.isUserFilterDropdownOpen(),
+      usersDropdownOpen: this.isUsersDropdownOpen(),
+      userSearchOpen: this.isUserSearchOpen(),
+      userQuery: this.query(),
+      userFilterStatus: this.userFilterStatus(),
+      filterStatus: this.currentFilterStatus(),
+      selectedTaskUserId: this.selectedTaskUserId(),
+      taskQuery: this.taskQuery(),
+      taskUserSearch: this.taskUserSearch(),
+      empresaQuery: this.empresaQuery(),
+      calendarMonth: this.calendarMonth(),
+      calendarEventDate: this.calendarEventDate(),
+      calendarEventTitle: this.calendarEventTitle(),
+      error: this.error(),
+      showPassword: this.showPassword()
+    };
+    this.navigationHistory.update(history => [...history, snapshot]);
+  };
 
   protected updateQuery(value: string) {
     this.query.set(value);
@@ -514,7 +604,6 @@ export class App implements OnDestroy {
   }
 
   protected openAddUserForm(isAdmin: boolean = false) {
-    this.userFormReturnScrollY = window.scrollY;
     this.resetForm();
     this.isUserFormVisible.set(true);
     if (isAdmin) {
@@ -539,106 +628,82 @@ export class App implements OnDestroy {
       return;
     }
 
-    if (this.loginModalUser()) {
-      this.closeLoginModal();
-      return;
-    }
-    if (this.permissionsModalUser()) {
-      this.closePermissionsModal();
-      return;
-    }
-    if (this.isNotificationMenuOpen()) {
-      this.isNotificationMenuOpen.set(false);
-      return;
-    }
-    if (this.isProfileMenuOpen()) {
-      this.isProfileMenuOpen.set(false);
-      return;
-    }
-    if (this.isSidebarOpen()) {
-      this.isSidebarOpen.set(false);
-      return;
-    }
-    if (this.editingTask() || this.isTaskFormVisible()) {
-      this.cancelEditTask();
-      this.restoreScrollPosition(this.taskFormReturnScrollY);
-      return;
-    }
-    if (this.isUserFormVisible()) {
-      if (this.previousAdminView()) {
-        this.backToPreviousAdminView();
-      } else {
-        this.cancelEdit();
-      }
-      this.restoreScrollPosition(this.userFormReturnScrollY);
-      return;
-    }
-    if (this.isEmpresaFormVisible()) {
-      this.cancelEditEmpresa();
-      this.restoreScrollPosition(this.empresaFormReturnScrollY);
-      return;
-    }
-    if (this.isCalendarOpen()) {
-      this.isCalendarOpen.set(false);
-      return;
-    }
-    if (this.taskListReturn()) {
-      this.isTaskListNumbered.set(this.taskListReturnMode);
-      this.taskListReturn.set(false);
-      this.restoreScrollPosition(this.taskListReturnScrollY);
-      return;
-    }
-    if (this.selectedEmpresa()) {
-      this.selectedEmpresa.set(null);
-      this.restoreScrollPosition(this.empresaSelectionReturnScrollY);
+    const history = this.navigationHistory();
+    const previousState = history[history.length - 1];
+    if (previousState) {
+      this.navigationHistory.set(history.slice(0, -1));
+      this.restoreNavigationState(previousState);
       return;
     }
 
-    const history = this.adminViewHistory();
-    if (this.currentUser()?.role === 'admin' && history.length > 0) {
-      const previousLocation = history[history.length - 1];
-      this.adminView.set(previousLocation.view);
-      this.adminViewHistory.set(history.slice(0, -1));
-      this.restoreScrollPosition(previousLocation.scrollY);
-      return;
-    }
-
-    if (this.currentUser()?.role === 'admin' && this.adminView() !== 'tasks') {
-      this.adminView.set('tasks');
-    }
-    if (this.isTaskDashboardVisible() && window.scrollY > 0) {
-      this.returnToLatestTask();
-      return;
-    }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  private isTaskDashboardVisible() {
-    return this.currentUser()?.role !== 'admin' || this.adminView() === 'tasks';
-  }
-
-  private restoreScrollPosition(scrollY: number) {
-    setTimeout(() => window.scrollTo({ top: scrollY, behavior: 'smooth' }));
-  }
-
-  private returnToLatestTask() {
-    const latestTask = [...this.tasks()].sort((first, second) =>
-      Date.parse(second.createdAt) - Date.parse(first.createdAt)
-    )[0];
-
+    this.adminView.set('tasks');
+    this.isSidebarOpen.set(false);
+    this.isCalendarOpen.set(false);
+    this.isProfileMenuOpen.set(false);
+    this.isNotificationMenuOpen.set(false);
+    this.loginModalUser.set(null);
+    this.permissionsModalUser.set(null);
+    this.isTaskFormVisible.set(false);
+    this.editingTask.set(null);
+    this.isTaskNameExpanded.set(false);
+    this.isUserFormVisible.set(false);
+    this.editingId.set(null);
+    this.editingUser.set(null);
+    this.isEmpresaFormVisible.set(false);
+    this.editingEmpresaId.set(null);
+    this.selectedEmpresa.set(null);
+    this.isCompanyDropdownOpen.set(false);
+    this.isUserFilterDropdownOpen.set(false);
+    this.isUsersDropdownOpen.set(false);
+    this.isTaskListNumbered.set(false);
     this.currentFilterStatus.set('all');
     this.selectedTaskUserId.set('all');
     this.taskQuery.set('');
-    this.isTaskListNumbered.set(false);
-    this.taskListReturn.set(false);
+    this.previousAdminView.set(null);
+    this.error.set(null);
+    window.scrollTo(0, 0);
+  }
 
-    if (!latestTask) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-    setTimeout(() => {
-      document.getElementById(`task-card-${latestTask._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+  private restoreNavigationState(snapshot: NavigationSnapshot) {
+    this.adminView.set(snapshot.adminView);
+    this.isSidebarOpen.set(snapshot.sidebarOpen);
+    this.isCalendarOpen.set(snapshot.calendarOpen);
+    this.isTaskListNumbered.set(snapshot.taskListNumbered);
+    this.taskListOrder.set(snapshot.taskListOrder);
+    this.isTaskNameExpanded.set(snapshot.taskNameExpanded);
+    this.isTaskFormVisible.set(snapshot.taskFormVisible);
+    this.taskForm.set(snapshot.taskForm);
+    this.editingTask.set(snapshot.editingTask);
+    this.isUserFormVisible.set(snapshot.userFormVisible);
+    this.form.set(snapshot.userForm);
+    this.editingId.set(snapshot.editingId);
+    this.editingUser.set(snapshot.editingUser);
+    this.previousAdminView.set(snapshot.previousAdminView);
+    this.isEmpresaFormVisible.set(snapshot.empresaFormVisible);
+    this.empresaForm.set(snapshot.empresaForm);
+    this.editingEmpresaId.set(snapshot.editingEmpresaId);
+    this.selectedEmpresa.set(snapshot.selectedEmpresa);
+    this.isProfileMenuOpen.set(snapshot.profileMenuOpen);
+    this.isNotificationMenuOpen.set(snapshot.notificationMenuOpen);
+    this.loginModalUser.set(snapshot.loginModalUser);
+    this.permissionsModalUser.set(snapshot.permissionsModalUser);
+    this.isCompanyDropdownOpen.set(snapshot.companyDropdownOpen);
+    this.isUserFilterDropdownOpen.set(snapshot.userFilterDropdownOpen);
+    this.isUsersDropdownOpen.set(snapshot.usersDropdownOpen);
+    this.isUserSearchOpen.set(snapshot.userSearchOpen);
+    this.query.set(snapshot.userQuery);
+    this.userFilterStatus.set(snapshot.userFilterStatus);
+    this.currentFilterStatus.set(snapshot.filterStatus);
+    this.selectedTaskUserId.set(snapshot.selectedTaskUserId);
+    this.taskQuery.set(snapshot.taskQuery);
+    this.taskUserSearch.set(snapshot.taskUserSearch);
+    this.empresaQuery.set(snapshot.empresaQuery);
+    this.calendarMonth.set(snapshot.calendarMonth);
+    this.calendarEventDate.set(snapshot.calendarEventDate);
+    this.calendarEventTitle.set(snapshot.calendarEventTitle);
+    this.error.set(snapshot.error);
+    this.showPassword.set(snapshot.showPassword);
+    requestAnimationFrame(() => window.scrollTo(0, snapshot.scrollY));
   }
 
   protected onBackButtonClick() {
@@ -710,7 +775,7 @@ export class App implements OnDestroy {
   private _performLogin(user: User) {
     localStorage.setItem('currentUserId', user._id);
     this.currentUser.set(user);
-    this.adminViewHistory.set([]);
+    this.navigationHistory.set([]);
     void this.loadTasks(); // Load tasks for the newly "logged-in" user
     void this.loadNotifications();
     if (user.role === 'admin') {
@@ -836,7 +901,7 @@ export class App implements OnDestroy {
     this.tasks.set([]);
     this.notifications.set([]);
     this.adminView.set('users');
-    this.adminViewHistory.set([]);
+    this.navigationHistory.set([]);
     this.selectedEmpresa.set(null);
     this.isSidebarOpen.set(false);
     // After full logout, always load all users for the login screen.
@@ -1013,7 +1078,6 @@ export class App implements OnDestroy {
   }
 
   protected editUser(user: User) {
-    this.userFormReturnScrollY = window.scrollY;
     // Check if this action is coming from the profile menu (editing the current user)
     const isEditingCurrentUser = this.currentUser()?._id === user._id;
 
@@ -1058,9 +1122,6 @@ export class App implements OnDestroy {
     this.cancelEdit();
     if (previousView) {
       this.adminView.set(previousView);
-      this.adminViewHistory.update(history =>
-        history[history.length - 1]?.view === previousView ? history.slice(0, -1) : history
-      );
     }
   }
 
@@ -1119,15 +1180,10 @@ export class App implements OnDestroy {
   // --- Company Management Methods ---
 
   protected setAdminView(view: 'tasks' | 'users' | 'empresas' | 'configuraciones') {
-    const currentView = this.adminView();
-    if (currentView !== view) {
-      this.adminViewHistory.update(history => [...history, { view: currentView, scrollY: window.scrollY }]);
-    }
     this.adminView.set(view);
   }
 
   protected selectEmpresa(empresa: Empresa) {
-    this.empresaSelectionReturnScrollY = window.scrollY;
     if (this.selectedEmpresa()?._id === empresa._id) {
       this.selectedEmpresa.set(null);
     } else {
@@ -1209,14 +1265,12 @@ export class App implements OnDestroy {
   }
 
   protected openAddEmpresaForm() {
-    this.empresaFormReturnScrollY = window.scrollY;
     this.resetEmpresaForm();
     this.isEmpresaFormVisible.set(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   protected editEmpresa(empresa: Empresa) {
-    this.empresaFormReturnScrollY = window.scrollY;
     this.editingEmpresaId.set(empresa._id);
     this.empresaForm.set({ name: empresa.name, rubro: empresa.rubro });
     this.isEmpresaFormVisible.set(true);
@@ -1254,9 +1308,6 @@ export class App implements OnDestroy {
   }
 
   protected showTaskCard(taskId: string) {
-    this.taskListReturnScrollY = window.scrollY;
-    this.taskListReturnMode = true;
-    this.taskListReturn.set(true);
     this.isTaskListNumbered.set(false);
     setTimeout(() => {
       document.getElementById(`task-card-${taskId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1278,10 +1329,7 @@ export class App implements OnDestroy {
   }
 
   protected toggleTaskList() {
-    this.taskListReturnMode = this.isTaskListNumbered();
-    this.taskListReturnScrollY = window.scrollY;
     this.isTaskListNumbered.update(isNumbered => !isNumbered);
-    this.taskListReturn.set(true);
   }
 
   protected toggleTaskListOrder() {
@@ -1354,6 +1402,10 @@ export class App implements OnDestroy {
 
   protected updateTaskFormField(field: 'name' | 'status' | 'userId', value: string) {
     this.taskForm.update(current => ({ ...current, [field]: value }));
+  }
+
+  protected toggleTaskNameExpanded() {
+    this.isTaskNameExpanded.update(expanded => !expanded);
   }
 
   protected updateTaskTimer(value: string) {
@@ -1436,8 +1488,8 @@ export class App implements OnDestroy {
   }
 
   protected openAddTaskForm() {
-    this.taskFormReturnScrollY = window.scrollY;
     this.editingTask.set(null);
+    this.isTaskNameExpanded.set(false);
     this.taskForm.set({ name: '', status: 'ejecutando', userId: this.currentUser()?._id ?? '', timerDays: null, timerHours: null, timerMinutes: null });
     this.isTaskFormVisible.set(true);
     this.error.set(null);
@@ -1462,6 +1514,7 @@ export class App implements OnDestroy {
       }
     }
     this.editingTask.set(task);
+    this.isTaskNameExpanded.set(false);
     const totalTimerMinutes = task.timerMinutes ?? 0;
     this.taskForm.set({
       name: task.name,
@@ -1477,6 +1530,7 @@ export class App implements OnDestroy {
 
   protected cancelEditTask() {
     this.editingTask.set(null);
+    this.isTaskNameExpanded.set(false);
     this.taskForm.set({ name: '', status: 'ejecutando', userId: '', timerDays: null, timerHours: null, timerMinutes: null });
     this.isTaskFormVisible.set(false);
     this.error.set(null);
