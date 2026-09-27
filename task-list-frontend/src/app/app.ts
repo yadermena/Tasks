@@ -126,6 +126,7 @@ export class App implements OnDestroy {
   protected readonly taskQuery = signal('');
   protected readonly selectedTaskUserId = signal<string | 'all'>('all');
   protected readonly taskUserSearch = signal('');
+  protected readonly isTaskListNumbered = signal(false);
 
   protected readonly tasksForSummary = computed(() => {
     const allTasks = this.tasks();
@@ -1039,6 +1040,13 @@ export class App implements OnDestroy {
     return task._id;
   }
 
+  protected showTaskCard(taskId: string) {
+    this.isTaskListNumbered.set(false);
+    setTimeout(() => {
+      document.getElementById(`task-card-${taskId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
   protected selectTaskUser(userId: string | 'all') {
     this.selectedTaskUserId.set(userId);
     this.taskUserSearch.set('');
@@ -1053,10 +1061,26 @@ export class App implements OnDestroy {
     this.taskQuery.set(value);
   }
 
-  protected getUserCompanies(userId: string): string {
+  protected getUserCompanyList(userId: string): NonNullable<User['companies']> {
     const user = this.users().find(u => u._id === userId);
-    if (!user || !user.companies || user.companies.length === 0) return '';
-    return user.companies.map(c => c.name).join(', ');
+    return user?.companies ?? [];
+  }
+
+  protected openTaskCompany(company: NonNullable<User['companies']>[number]) {
+    const empresa = this.empresas().find(item => item._id === company._id);
+    if (!empresa) return;
+
+    if (this.currentUser()?.role === 'admin') {
+      this.setAdminView('empresas');
+      this.isEmpresaFormVisible.set(false);
+      this.empresaQuery.set('');
+      setTimeout(() => {
+        document.getElementById(`empresa-card-${empresa._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      return;
+    }
+
+    this.selectEmpresa(empresa);
   }
 
   protected getUserTimerSummary(userId: string): string {

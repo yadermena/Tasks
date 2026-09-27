@@ -574,6 +574,75 @@ button:hover {
   gap: 1rem;
 }
 
+.task-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.task-list--numbered {
+  counter-reset: task-number;
+}
+
+.task-list--numbered > .user-card {
+  counter-increment: task-number;
+  position: relative;
+  padding-left: 2.5rem;
+}
+
+.task-list--numbered > .user-card::before {
+  content: counter(task-number) ".";
+  position: absolute;
+  top: 0.7rem;
+  left: 0.75rem;
+  color: #334155;
+  font-weight: 700;
+}
+
+.task-name-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.task-name-list li {
+  padding: 0.25rem 0;
+  border-bottom: 1px dotted rgba(89, 84, 74, 0.4);
+}
+
+.task-name-list li:last-child {
+  border-bottom: 0;
+}
+
+.task-name-link,
+.task-company-link {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #334155;
+  font: inherit;
+  text-align: left;
+}
+
+.task-name-link:hover,
+.task-company-link:hover {
+  color: #3730a3;
+  text-decoration: underline;
+  box-shadow: none;
+  transform: none;
+}
+
+.task-name-number {
+  margin-right: 0.35rem;
+  font-weight: 700;
+}
+
+.task-company-link {
+  color: #3730a3;
+  font-weight: 600;
+}
+
 .section-subtitle {
   font-size: 1rem;
   color: #1e293b;
@@ -771,7 +840,7 @@ button:hover {
     width: 100%;
     max-width: none;
     margin: 0;
-    padding: 3.7rem 0 1rem;
+    padding: 3.7rem 6px 1rem;
   }
 
   .dashboard-panel {
@@ -1659,4 +1728,28 @@ button:hover {
 
 .inline-edit-form input {
   flex-grow: 1;
+}
+
+@media (max-width: 720px) {
+  .task-summary-panel {
+    gap: 2px;
+    padding: 0 2px;
+  }
+
+  .task-summary-panel > .summary-card {
+    border: 1px solid rgba(89, 84, 74, 0.24);
+    border-radius: 0.65rem;
+  }
+
+  .users-section .user-list {
+    padding-inline: 2px;
+  }
+
+  .task-list--numbered > .user-card {
+    padding-left: 2rem;
+  }
+
+  .task-list--numbered > .user-card::before {
+    left: 0.5rem;
+  }
 }

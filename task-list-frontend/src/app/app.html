@@ -246,7 +246,26 @@
         <p>{{ deletedTasksCount() }}</p>
       </button>
       <button type="button" class="summary-card show-all" [class.active]="currentFilterStatus() === 'all'" (click)="setFilterStatus('all')">
+        <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
+          <rect x="14" y="14" width="14" height="14" rx="2" stroke="currentColor" stroke-width="3" />
+          <rect x="36" y="14" width="14" height="14" rx="2" stroke="currentColor" stroke-width="3" />
+          <rect x="14" y="36" width="14" height="14" rx="2" stroke="currentColor" stroke-width="3" />
+          <rect x="36" y="36" width="14" height="14" rx="2" stroke="currentColor" stroke-width="3" />
+        </svg>
         <h4>Mostrar Todo</h4>
+      </button>
+      <button
+        type="button"
+        class="summary-card show-list"
+        [class.active]="isTaskListNumbered()"
+        [attr.aria-pressed]="isTaskListNumbered()"
+        (click)="isTaskListNumbered.update(value => !value)"
+      >
+        <svg class="summary-card-icon" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M25 17h28M25 32h28M25 47h28" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" />
+          <path d="M12 17h2M12 32h2M12 47h2" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
+        </svg>
+        <h4>Mostrar en lista</h4>
       </button>
     </section>
 
@@ -359,8 +378,17 @@
         <p>No se encontraron tareas que coincidan con la búsqueda.</p>
       </div>
 
-      <div *ngIf="!taskLoading() && filteredTasks().length > 0" class="user-list">
-        <article class="user-card" [class.deleted-task]="task.isDeleted" [ngClass]="'task-status-card--' + task.status" *ngFor="let task of filteredTasks(); trackBy: trackTaskById">
+      <ol *ngIf="!taskLoading() && filteredTasks().length > 0 && isTaskListNumbered()" class="task-name-list">
+        <li *ngFor="let task of filteredTasks(); let index = index; trackBy: trackTaskById">
+          <button type="button" class="task-name-link" (click)="showTaskCard(task._id)" [attr.aria-label]="'Ver tarjeta de tarea ' + task.name">
+            <span class="task-name-number">{{ index + 1 }}.</span>
+            {{ task.name }}
+          </button>
+        </li>
+      </ol>
+
+      <div *ngIf="!taskLoading() && filteredTasks().length > 0 && !isTaskListNumbered()" class="user-list">
+        <article class="user-card" [attr.id]="'task-card-' + task._id" [class.deleted-task]="task.isDeleted" [ngClass]="'task-status-card--' + task.status" *ngFor="let task of filteredTasks(); trackBy: trackTaskById">
           <ng-container *ngIf="editingTask()?._id !== task._id; else editTaskForm">
             <div class="task-details">
               <h3>{{ task.name }}</h3>
@@ -368,8 +396,11 @@
                 <span class="status-dot" [ngClass]="'status-' + task.status"></span>
                 <p>
                   Estado: <span class="status-text">{{ task.status }}</span>
-                  <span class="task-company-badge" *ngIf="task.userId && getUserCompanies(task.userId._id)">
-                    | {{ getUserCompanies(task.userId._id) }}
+                  <span class="task-company-badge" *ngIf="task.userId && getUserCompanyList(task.userId._id).length">
+                    |
+                    <ng-container *ngFor="let company of getUserCompanyList(task.userId._id); let last = last">
+                      <button type="button" class="task-company-link" (click)="openTaskCompany(company)">{{ company.name }}</button>{{ last ? '' : ', ' }}
+                    </ng-container>
                   </span>
                   <span *ngIf="task.isDeleted" class="deleted-indicator">(Eliminada)</span>
                 </p>
@@ -897,7 +928,7 @@
         <div class="status-bar error" *ngIf="error()">{{ error() }}</div>
         <div class="empty-state" *ngIf="!loading() && filteredEmpresas().length === 0"><p>No hay empresas para mostrar.</p></div>
         <div class="user-list" *ngIf="!loading() && filteredEmpresas().length > 0">
-          <article class="user-card" *ngFor="let empresa of filteredEmpresas(); trackBy: trackEmpresaById">
+          <article class="user-card" [attr.id]="'empresa-card-' + empresa._id" *ngFor="let empresa of filteredEmpresas(); trackBy: trackEmpresaById">
             <div>
               <h3>{{ empresa.name }}</h3>
               <p>Rubro: {{ empresa.rubro }}</p>
