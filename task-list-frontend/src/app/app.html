@@ -147,21 +147,15 @@
     <form class="user-form" (submit)="onTaskSubmit($event)" *ngIf="isTaskFormVisible()">
       <h2>Nueva Tarea</h2>
       <div class="form-grid">
-        <div class="form-field-group task-name-editor" [class.expanded]="isTaskNameExpanded()">
-          <div class="task-name-editor-heading">
+        <div class="form-field-group task-name-editor">
           <label for="task-name">Nombre de la tarea</label>
-            <button type="button" class="task-name-expand" (click)="toggleTaskNameExpanded()" [attr.aria-expanded]="isTaskNameExpanded()" [attr.aria-label]="isTaskNameExpanded() ? 'Minimizar campo de tarea' : 'Expandir campo de tarea'" [title]="isTaskNameExpanded() ? 'Minimizar' : 'Expandir'">
-              <svg *ngIf="!isTaskNameExpanded()" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M3 3l6 6m12-6-6 6M3 21l6-6m12 6-6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
-              <svg *ngIf="isTaskNameExpanded()" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v5H3m13-5v5h5M3 16h5v5m13-5h-5v5M3 3l6 6m12-6-6 6M3 21l6-6m12 6-6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
-            </button>
-          </div>
           <textarea
             id="task-name"
-            [rows]="isTaskNameExpanded() ? 8 : 2"
+            rows="2"
             placeholder="Nombre de la tarea"
             aria-label="Nombre de la tarea"
             [value]="taskForm().name"
-            (input)="updateTaskFormField('name', $any($event.target).value)"
+            (input)="updateTaskName($event)"
           ></textarea>
         </div>
         <div class="form-field-group">
@@ -456,21 +450,15 @@
             <form class="user-form" (submit)="onTaskSubmit($event)" style="width: 100%; padding: 0; border: none; background: none; box-shadow: none;">
               <h2 style="margin-top: 0;">Editar Tarea</h2>
               <div class="form-grid">
-                <div class="form-field-group task-name-editor" [class.expanded]="isTaskNameExpanded()">
-                  <div class="task-name-editor-heading">
-                    <label [for]="'task-name-' + task._id">Nombre de la tarea</label>
-                    <button type="button" class="task-name-expand" (click)="toggleTaskNameExpanded()" [attr.aria-expanded]="isTaskNameExpanded()" [attr.aria-label]="isTaskNameExpanded() ? 'Minimizar campo de tarea' : 'Expandir campo de tarea'" [title]="isTaskNameExpanded() ? 'Minimizar' : 'Expandir'">
-                      <svg *ngIf="!isTaskNameExpanded()" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M3 3l6 6m12-6-6 6M3 21l6-6m12 6-6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                      <svg *ngIf="isTaskNameExpanded()" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v5H3m13-5v5h5M3 16h5v5m13-5h-5v5M3 3l6 6m12-6-6 6M3 21l6-6m12 6-6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                    </button>
-                  </div>
+                <div class="form-field-group task-name-editor">
+                  <label [for]="'task-name-' + task._id">Nombre de la tarea</label>
                   <textarea
                     [id]="'task-name-' + task._id"
-                    [rows]="isTaskNameExpanded() ? 8 : 2"
+                    rows="2"
                     placeholder="Nombre de la tarea"
                     aria-label="Nombre de la tarea"
                     [value]="taskForm().name"
-                    (input)="updateTaskFormField('name', $any($event.target).value)"
+                    (input)="updateTaskName($event)"
                   ></textarea>
                 </div>
                 <div class="form-field-group">

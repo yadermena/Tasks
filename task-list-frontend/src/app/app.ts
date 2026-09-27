@@ -84,7 +84,6 @@ interface NavigationSnapshot {
   calendarOpen: boolean;
   taskListNumbered: boolean;
   taskListOrder: 'asc' | 'desc';
-  taskNameExpanded: boolean;
   taskFormVisible: boolean;
   taskForm: { name: string; status: Task['status']; userId: string; timerDays: number | null; timerHours: number | null; timerMinutes: number | null };
   editingTask: Task | null;
@@ -175,7 +174,6 @@ export class App implements OnDestroy {
   protected readonly taskUserSearch = signal('');
   protected readonly isTaskListNumbered = signal(false);
   protected readonly taskListOrder = signal<'asc' | 'desc'>('asc');
-  protected readonly isTaskNameExpanded = signal(false);
   protected readonly showBackButton = signal(true);
   protected readonly backButtonPosition = signal<{ left: number; top: number } | null>(null);
   private backButtonDragStart: { pointerId: number; pointerX: number; pointerY: number; left: number; top: number } | null = null;
@@ -539,7 +537,6 @@ export class App implements OnDestroy {
       calendarOpen: this.isCalendarOpen(),
       taskListNumbered: this.isTaskListNumbered(),
       taskListOrder: this.taskListOrder(),
-      taskNameExpanded: this.isTaskNameExpanded(),
       taskFormVisible: this.isTaskFormVisible(),
       taskForm: this.taskForm(),
       editingTask: this.editingTask(),
@@ -645,7 +642,6 @@ export class App implements OnDestroy {
     this.permissionsModalUser.set(null);
     this.isTaskFormVisible.set(false);
     this.editingTask.set(null);
-    this.isTaskNameExpanded.set(false);
     this.isUserFormVisible.set(false);
     this.editingId.set(null);
     this.editingUser.set(null);
@@ -670,7 +666,6 @@ export class App implements OnDestroy {
     this.isCalendarOpen.set(snapshot.calendarOpen);
     this.isTaskListNumbered.set(snapshot.taskListNumbered);
     this.taskListOrder.set(snapshot.taskListOrder);
-    this.isTaskNameExpanded.set(snapshot.taskNameExpanded);
     this.isTaskFormVisible.set(snapshot.taskFormVisible);
     this.taskForm.set(snapshot.taskForm);
     this.editingTask.set(snapshot.editingTask);
@@ -1404,8 +1399,11 @@ export class App implements OnDestroy {
     this.taskForm.update(current => ({ ...current, [field]: value }));
   }
 
-  protected toggleTaskNameExpanded() {
-    this.isTaskNameExpanded.update(expanded => !expanded);
+  protected updateTaskName(event: Event) {
+    const textarea = event.target as HTMLTextAreaElement;
+    this.updateTaskFormField('name', textarea.value);
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 288)}px`;
   }
 
   protected updateTaskTimer(value: string) {
@@ -1489,7 +1487,6 @@ export class App implements OnDestroy {
 
   protected openAddTaskForm() {
     this.editingTask.set(null);
-    this.isTaskNameExpanded.set(false);
     this.taskForm.set({ name: '', status: 'ejecutando', userId: this.currentUser()?._id ?? '', timerDays: null, timerHours: null, timerMinutes: null });
     this.isTaskFormVisible.set(true);
     this.error.set(null);
@@ -1514,7 +1511,6 @@ export class App implements OnDestroy {
       }
     }
     this.editingTask.set(task);
-    this.isTaskNameExpanded.set(false);
     const totalTimerMinutes = task.timerMinutes ?? 0;
     this.taskForm.set({
       name: task.name,
@@ -1530,7 +1526,6 @@ export class App implements OnDestroy {
 
   protected cancelEditTask() {
     this.editingTask.set(null);
-    this.isTaskNameExpanded.set(false);
     this.taskForm.set({ name: '', status: 'ejecutando', userId: '', timerDays: null, timerHours: null, timerMinutes: null });
     this.isTaskFormVisible.set(false);
     this.error.set(null);
