@@ -517,6 +517,12 @@ export class App implements OnDestroy {
     if (this.isNotificationMenuOpen() && !target.closest('.notification-button')) {
       this.isNotificationMenuOpen.set(false);
     }
+    if (this.isProfileMenuOpen() && !target.closest('.profile-avatar')) {
+      this.isProfileMenuOpen.set(false);
+    }
+    if (this.isSidebarOpen() && !target.closest('.sidebar, .hamburger-menu')) {
+      this.isSidebarOpen.set(false);
+    }
     if (this.isCompanyDropdownOpen()) {
       if (!target.closest('.custom-dropdown')) {
         this.isCompanyDropdownOpen.set(false);
@@ -778,6 +784,12 @@ export class App implements OnDestroy {
     this.passwordInput.set('');
     this.loginError.set(null);
     this.isSidebarOpen.set(false);
+  }
+
+  protected getUserDisplayName(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length < 3) return parts.join(' ');
+    return `${parts[0]} ${parts[parts.length - 1]}`;
   }
 
   private _performLogin(user: User) {

@@ -65,24 +65,32 @@
     <hr *ngIf="realUser()?.role === 'admin' && realUser()?._id !== currentUser()?._id">
 
     <!-- Admin navigation -->
-    <ul class="user-selection-list" *ngIf="currentUser()?.role === 'admin'" style="margin-bottom: 1rem;">
-      <li><button [class.active]="adminView() === 'tasks'" (click)="setAdminView('tasks'); isSidebarOpen.set(false)">Tareas</button></li>
-      <li><button [class.active]="adminView() === 'users'" (click)="setAdminView('users'); isSidebarOpen.set(false)">Usuarios</button></li>
-      <li><button [class.active]="adminView() === 'empresas'" (click)="setAdminView('empresas'); isSidebarOpen.set(false)">Empresas</button></li>
-      <li><button [class.active]="adminView() === 'configuraciones'" (click)="setAdminView('configuraciones'); isSidebarOpen.set(false)">Configuraciones</button></li>
+    <ul class="user-selection-list admin-nav" *ngIf="currentUser()?.role === 'admin'">
+      <li><button [class.active]="adminView() === 'tasks'" (click)="setAdminView('tasks'); isSidebarOpen.set(false)" aria-label="Tareas" title="Tareas">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 1.5 1.5L7 5m3 1h11M3 12l1.5 1.5L7 11m3 1h11M3 18l1.5 1.5L7 17m3 1h11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button></li>
+      <li><button [class.active]="adminView() === 'users'" (click)="setAdminView('users'); isSidebarOpen.set(false)" aria-label="Usuarios" title="Usuarios">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m6-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm6-7.5a4 4 0 0 1 0 7.75M20 21v-2a4 4 0 0 0-3-3.87" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button></li>
+      <li><button [class.active]="adminView() === 'empresas'" (click)="setAdminView('empresas'); isSidebarOpen.set(false)" aria-label="Empresas" title="Empresas">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V5l7-2v18m0-11h7v11M8 7h1m-1 4h1m-1 4h1m7-1h.01m-.01 4h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button></li>
+      <li><button [class.active]="adminView() === 'configuraciones'" (click)="setAdminView('configuraciones'); isSidebarOpen.set(false)" aria-label="Configuraciones" title="Configuraciones">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m19.4 15 .1.1a1.8 1.8 0 0 1-2.5 2.5l-.1-.1a1.8 1.8 0 0 0-3 .9v.2a1.8 1.8 0 0 1-3.6 0v-.2a1.8 1.8 0 0 0-3-.9l-.1.1a1.8 1.8 0 0 1-2.5-2.5l.1-.1a1.8 1.8 0 0 0-.9-3h-.2a1.8 1.8 0 0 1 0-3.6h.2a1.8 1.8 0 0 0 .9-3l-.1-.1a1.8 1.8 0 0 1 2.5-2.5l.1.1a1.8 1.8 0 0 0 3-.9v-.2a1.8 1.8 0 0 1 3.6 0v.2a1.8 1.8 0 0 0 3 .9l.1-.1a1.8 1.8 0 0 1 2.5 2.5l-.1.1a1.8 1.8 0 0 0 .9 3h.2a1.8 1.8 0 0 1 0 3.6h-.2a1.8 1.8 0 0 0-.9 3Z" transform="translate(0 2) scale(.83)" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button></li>
     </ul>
     <hr *ngIf="currentUser()?.role === 'admin'">
     <h3 class="sidebar-subtitle" *ngIf="currentUser()?.role === 'admin'">Cambiar Usuario</h3>
 
-    <ul class="user-selection-list">
+    <ul class="user-selection-list switch-user-list">
       <li *ngIf="loading()">Cargando usuarios...</li>
       <div *ngIf="error()" class="status-bar error">
         {{ error() }}
       </div>
       <li *ngIf="!loading() && users().length === 0">No hay usuarios.</li>
       <li *ngFor="let user of switchableUsers(); trackBy: trackById">
-        <button (click)="login(user)">
-          {{ user.name }} ({{ user.role }})
+        <button type="button" (click)="login(user)" [attr.aria-label]="'Solicitar credenciales para ' + getUserDisplayName(user.name)">
+          {{ getUserDisplayName(user.name) }}
         </button>
       </li>
     </ul>
@@ -1019,7 +1027,7 @@
   <!-- Admin Login Modal -->
   <div class="modal-overlay" *ngIf="loginModalUser() as user">
     <div class="modal-content">
-      <h2>Iniciar sesión como {{ user.name }}</h2>
+      <h2>Credenciales para {{ getUserDisplayName(user.name) }}</h2>
       <p>Por favor, ingrese la clave para continuar.</p>
       <form (submit)="$event.preventDefault(); attemptLogin()">
         <div class="form-grid-single">
