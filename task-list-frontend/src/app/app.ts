@@ -406,6 +406,8 @@ export class App implements OnDestroy {
   protected readonly calendarEventDate = signal(this.toDateKey(new Date()));
   private timerIntervalId: ReturnType<typeof setInterval> | null = null;
   private notificationIntervalId: ReturnType<typeof setInterval> | null = null;
+  private mobileBackGuardActive = false;
+  private mobileBackGuardUrl = '';
   protected readonly notifications = signal<AppNotification[]>([]);
   protected readonly isNotificationMenuOpen = signal(false);
   protected readonly unreadNotificationsCount = computed(() => this.notifications().filter(notification => !notification.read).length);
@@ -487,7 +489,8 @@ export class App implements OnDestroy {
       }
       this.loadCalendarEvents();
       document.addEventListener('click', this.captureNavigationState, true);
-      document.addEventListener('click', this.onDocumentClick.bind(this));
+      document.addEventListener('click', this.onDocumentClick);
+      window.addEventListener('popstate', this.onMobileBack);
       this.timerIntervalId = setInterval(() => {
         this.timerTick.set(Date.now());
         this.notifyExpiredTasks();
@@ -502,14 +505,18 @@ export class App implements OnDestroy {
   ngOnDestroy() {
     if (isPlatformBrowser(this.platformId)) {
       document.removeEventListener('click', this.captureNavigationState, true);
-      document.removeEventListener('click', this.onDocumentClick.bind(this));
+      document.removeEventListener('click', this.onDocumentClick);
+      window.removeEventListener('popstate', this.onMobileBack);
       if (this.timerIntervalId) clearInterval(this.timerIntervalId);
       if (this.notificationIntervalId) clearInterval(this.notificationIntervalId);
     }
   }
 
-  private onDocumentClick(event: MouseEvent) {
+  private readonly onDocumentClick = (event: MouseEvent) => {
     const target = event.target as HTMLElement;
+    if (this.isNotificationMenuOpen() && !target.closest('.notification-button')) {
+      this.isNotificationMenuOpen.set(false);
+    }
     if (this.isCompanyDropdownOpen()) {
       if (!target.closest('.custom-dropdown')) {
         this.isCompanyDropdownOpen.set(false);
@@ -522,7 +529,13 @@ export class App implements OnDestroy {
     if (this.isUsersDropdownOpen() && !target.closest('.users-name-picker')) {
       this.isUsersDropdownOpen.set(false);
     }
-  }
+  };
+
+  private readonly onMobileBack = () => {
+    if (!this.currentUser() || window.location.href !== this.mobileBackGuardUrl) return;
+    this.goBack();
+    window.history.pushState({ taskListMobileBackGuard: true }, '', this.mobileBackGuardUrl);
+  };
 
   private readonly captureNavigationState = (event: MouseEvent) => {
     const target = event.target;
@@ -771,6 +784,11 @@ export class App implements OnDestroy {
     localStorage.setItem('currentUserId', user._id);
     this.currentUser.set(user);
     this.navigationHistory.set([]);
+    if (!this.mobileBackGuardActive && isPlatformBrowser(this.platformId)) {
+      this.mobileBackGuardUrl = window.location.href;
+      window.history.pushState({ taskListMobileBackGuard: true }, '', this.mobileBackGuardUrl);
+      this.mobileBackGuardActive = true;
+    }
     void this.loadTasks(); // Load tasks for the newly "logged-in" user
     void this.loadNotifications();
     if (user.role === 'admin') {
@@ -1547,6 +1565,25 @@ export class App implements OnDestroy {
     if (minutes > 0 || hours > 0 || days > 0) parts.push(`${minutes}m`);
     parts.push(`${seconds}s`);
     return parts.join(' ');
+  }
+
+  protected getTaskCreatedDate(createdAt: string): string {
+    const date = new Date(createdAt);
+    if (Number.isNaN(date.getTime())) return '';
+    return this.formatTaskDate(date);
+  }
+
+  protected getTaskTimerPeriod(task: Task): string {
+    if (!task.timerEndsAt) return '';
+    const end = new Date(task.timerEndsAt);
+    const start = new Date(end.getTime() - (task.timerMinutes ?? 0) * 60 * 1000);
+    const format = (date: Date) => `${this.formatTaskDate(date)} ${new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date)}`;
+    return `Inicio: ${format(start)} · Fin: ${format(end)}`;
+  }
+
+  private formatTaskDate(date: Date): string {
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    return `${String(date.getDate()).padStart(2, '0')}_${months[date.getMonth()]}_${date.getFullYear()}`;
   }
 
   private async requestNotificationPermission() {

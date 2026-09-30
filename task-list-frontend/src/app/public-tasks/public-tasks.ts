@@ -16,6 +16,7 @@ interface Task {
   completed: boolean;
   isDeleted: boolean;
   createdAt: string;
+  timerMinutes?: number | null;
   timerEndsAt?: string | null;
   userId: {
     _id: string;
@@ -52,9 +53,11 @@ interface CalendarEvent {
         <article class="task-card" [class.completed]="task.status === 'completada'" *ngFor="let task of tasks()">
           <div class="task-details">
             <h3>{{ task.name }}</h3>
+            <p class="task-created">Creada: {{ getTaskCreatedDate(task.createdAt) }}</p>
             <span class="status-badge" [ngClass]="'status-' + task.status">
               {{ task.status }}
             </span>
+            <p *ngIf="task.timerEndsAt" class="task-timing">{{ getTaskTimerPeriod(task) }}</p>
             <p *ngIf="task.timerEndsAt && task.status !== 'completada'" class="task-timer" [class.expired]="getTimerLabel(task) === 'Tiempo agotado'">
               Temporizador: {{ getTimerLabel(task) }}
             </p>
@@ -156,6 +159,12 @@ interface CalendarEvent {
     .task-details h3 {
       margin: 0 0 0.5rem;
       font-size: 1.1rem;
+    }
+    .task-created,
+    .task-timing {
+      margin: 0.2rem 0 0;
+      color: #64748b;
+      font-size: 0.7rem;
     }
     .status-badge {
       font-size: 0.75rem;
@@ -305,6 +314,25 @@ export class PublicTasksComponent implements OnInit, OnDestroy {
     return hours > 0
       ? `${hours}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`
       : `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+  }
+
+  protected getTaskCreatedDate(createdAt: string): string {
+    const date = new Date(createdAt);
+    if (Number.isNaN(date.getTime())) return '';
+    return this.formatTaskDate(date);
+  }
+
+  protected getTaskTimerPeriod(task: Task): string {
+    if (!task.timerEndsAt) return '';
+    const end = new Date(task.timerEndsAt);
+    const start = new Date(end.getTime() - (task.timerMinutes ?? 0) * 60 * 1000);
+    const format = (date: Date) => `${this.formatTaskDate(date)} ${new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date)}`;
+    return `Inicio: ${format(start)} · Fin: ${format(end)}`;
+  }
+
+  private formatTaskDate(date: Date): string {
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    return `${String(date.getDate()).padStart(2, '0')}_${months[date.getMonth()]}_${date.getFullYear()}`;
   }
 
   private async loadPublicTasks(userId: string) {

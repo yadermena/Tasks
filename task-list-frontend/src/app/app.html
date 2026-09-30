@@ -403,6 +403,7 @@
           <ng-container *ngIf="editingTask()?._id !== task._id; else editTaskForm">
             <div class="task-details">
               <h3>{{ task.name }}</h3>
+              <p class="task-created">Creada: {{ getTaskCreatedDate(task.createdAt) }}</p>
               <div class="status-container">
                 <span class="status-dot" [ngClass]="'status-' + task.status"></span>
                 <p>
@@ -422,6 +423,7 @@
               <p *ngIf="nextCalendarEventLabel()" class="task-next-event">
                 Próximo evento: {{ nextCalendarEventLabel() }}
               </p>
+              <p *ngIf="task.timerEndsAt" class="task-timing">{{ getTaskTimerPeriod(task) }}</p>
               <p *ngIf="task.timerEndsAt && !task.isDeleted" class="task-timer" [class.expired]="getTaskTimerLabel(task) === 'Tiempo agotado'">
                 Temporizador: {{ getTaskTimerLabel(task) }}
               </p>

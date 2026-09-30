@@ -763,6 +763,14 @@ button:hover {
   color: #64748b;
 }
 
+.task-created,
+.task-timing {
+  margin-top: 0.2rem !important;
+  color: #64748b !important;
+  font-size: 0.7rem;
+  font-weight: 400;
+}
+
 .task-user {
   font-size: 0.8rem;
   color: #94a3b8; /* cool-gray-400 */
