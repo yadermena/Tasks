@@ -67,16 +67,20 @@
     <!-- Admin navigation -->
     <ul class="user-selection-list admin-nav" *ngIf="currentUser()?.role === 'admin'">
       <li><button [class.active]="adminView() === 'tasks'" (click)="setAdminView('tasks'); isSidebarOpen.set(false)" aria-label="Tareas" title="Tareas">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 1.5 1.5L7 5m3 1h11M3 12l1.5 1.5L7 11m3 1h11M3 18l1.5 1.5L7 17m3 1h11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m6.5 9 1.5 1.5L10.5 8m2.5 1h5M6.5 15l1.5 1.5 2.5-2.5m2.5 1h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Tareas</span>
       </button></li>
       <li><button [class.active]="adminView() === 'users'" (click)="setAdminView('users'); isSidebarOpen.set(false)" aria-label="Usuarios" title="Usuarios">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m6-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm6-7.5a4 4 0 0 1 0 7.75M20 21v-2a4 4 0 0 0-3-3.87" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M2.5 20v-1.5A4.5 4.5 0 0 1 7 14h4a4.5 4.5 0 0 1 4.5 4.5V20m1-15.2a3.5 3.5 0 0 1 0 6.4M18 14.2a4.5 4.5 0 0 1 3.5 4.3V20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Usuarios</span>
       </button></li>
       <li><button [class.active]="adminView() === 'empresas'" (click)="setAdminView('empresas'); isSidebarOpen.set(false)" aria-label="Empresas" title="Empresas">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V5l7-2v18m0-11h7v11M8 7h1m-1 4h1m-1 4h1m7-1h.01m-.01 4h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20.5h18M5 20.5V5.2a1 1 0 0 1 .8-1l6.2-1.3v17.6m0-11.8h6a1 1 0 0 1 1 1v10.8M8 7.5h1m-1 3.5h1m-1 3.5h1m7-3h1m-1 3.5h1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Empresas</span>
       </button></li>
       <li><button [class.active]="adminView() === 'configuraciones'" (click)="setAdminView('configuraciones'); isSidebarOpen.set(false)" aria-label="Configuraciones" title="Configuraciones">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m19.4 15 .1.1a1.8 1.8 0 0 1-2.5 2.5l-.1-.1a1.8 1.8 0 0 0-3 .9v.2a1.8 1.8 0 0 1-3.6 0v-.2a1.8 1.8 0 0 0-3-.9l-.1.1a1.8 1.8 0 0 1-2.5-2.5l.1-.1a1.8 1.8 0 0 0-.9-3h-.2a1.8 1.8 0 0 1 0-3.6h.2a1.8 1.8 0 0 0 .9-3l-.1-.1a1.8 1.8 0 0 1 2.5-2.5l.1.1a1.8 1.8 0 0 0 3-.9v-.2a1.8 1.8 0 0 1 3.6 0v.2a1.8 1.8 0 0 0 3 .9l.1-.1a1.8 1.8 0 0 1 2.5 2.5l-.1.1a1.8 1.8 0 0 0 .9 3h.2a1.8 1.8 0 0 1 0 3.6h-.2a1.8 1.8 0 0 0-.9 3Z" transform="translate(0 2) scale(.83)" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Config.</span>
       </button></li>
     </ul>
     <hr *ngIf="currentUser()?.role === 'admin'">
