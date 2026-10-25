@@ -1,6 +1,7 @@
 import { Component, computed, signal, Inject, PLATFORM_ID, OnDestroy } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { SwPush } from '@angular/service-worker';
+import { ActivatedRoute, Router } from '@angular/router';
 import { LoginComponent } from './login/login';
 
 const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
@@ -119,7 +120,7 @@ interface NavigationSnapshot {
 }
 
 @Component({
-  selector: 'app-root',
+  selector: 'app-dashboard',
   standalone: true,
   imports: [CommonModule, LoginComponent],
   templateUrl: './app.html',
@@ -451,7 +452,23 @@ export class App implements OnDestroy {
     return days;
   });
 
-  constructor(@Inject(PLATFORM_ID) private platformId: object, private swPush: SwPush) {
+  constructor(
+    @Inject(PLATFORM_ID) private platformId: object,
+    private swPush: SwPush,
+    private route: ActivatedRoute,
+    private router: Router
+  ) {
+    this.route.data.subscribe(data => {
+      const view = data['adminView'] as AdminView | undefined;
+      if (view) this.adminView.set(view);
+      const status = data['filterStatus'];
+      if (status === 'ejecutando' || status === 'acumulada' || status === 'completada' || status === 'eliminadas') {
+        this.currentFilterStatus.set(status);
+      } else {
+        this.currentFilterStatus.set('all');
+      }
+    });
+
     if (isPlatformBrowser(this.platformId)) {
       this.showBackButton.set(localStorage.getItem(SHOW_BACK_BUTTON_KEY) !== 'false');
       try {
@@ -870,8 +887,7 @@ export class App implements OnDestroy {
   }
 
   protected viewMyTasks(user: User) {
-    const url = `${window.location.origin}/tareas/${user._id}`;
-    window.open(url, '_blank');
+    void this.router.navigateByUrl(`/tareas/${user._id}`);
     this.isProfileMenuOpen.set(false);
   }
 
@@ -1206,6 +1222,8 @@ export class App implements OnDestroy {
 
   protected setAdminView(view: 'tasks' | 'users' | 'empresas' | 'configuraciones') {
     this.adminView.set(view);
+    const section = view === 'tasks' ? 'tareas' : view === 'users' ? 'usuarios' : view;
+    void this.router.navigateByUrl(`/${section}`);
   }
 
   protected selectEmpresa(empresa: Empresa) {
@@ -1779,6 +1797,8 @@ export class App implements OnDestroy {
 
   protected setFilterStatus(status: 'all' | Task['status'] | 'eliminadas') {
     this.currentFilterStatus.set(status);
+    const url = status === 'all' ? '/tareas' : `/tareas/estado/${status}`;
+    void this.router.navigateByUrl(url);
   }
 
   protected openPermissionsModal(user: User) {

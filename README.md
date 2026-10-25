@@ -60,7 +60,7 @@ Usuario / navegador
    
 **Frontend**  
 - Angular standalone components.  
-- Angular Router para / y /tareas/:userId.  
+- Angular Router con un contenedor raíz (`AppShell` y `router-outlet`): las secciones del panel navegan por /tareas, /usuarios, /empresas y /configuraciones. Los estados de tareas tienen rutas /tareas/estado/:estado; las tareas públicas usan /tareas/:userId.
 - Signals y computed values para estado reactivo del dashboard.  
 - fetch para consumir la API REST.  
 - Service worker configurado en angular.json y ngsw-config.json.  
@@ -97,6 +97,7 @@ Tasks/
      ├── main.server.ts  
      ├── server.ts  
      └── app/  
+         ├── app-shell.ts
          ├── app.ts  
          ├── app.html  
          ├── app.css  
